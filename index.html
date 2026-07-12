@@ -273,15 +273,17 @@
     <div id="genre-list"></div>
 
     <div class="card">
-      <h2>☁️ GitHub同期（全端末で共有）</h2>
+      <h2>☁️ 議題の共有（全端末で同じ議題を使う）</h2>
       <div class="empty-note" style="margin:0 0 12px; text-align:left">
-        「GitHubへ同期」すると、このアプリを開いたすべての端末で同じ議題が使えるようになります
-        （初回アクセス時に自動で読み込まれます）。同期にはGitHubトークンの設定（初回のみ）が必要です。
+        みんなで使う議題はクラウド（GitHub）に1冊だけ保存されています。
+        編集するときは <b>①⬇️受け取る → ②編集 → ③⬆️保存</b> の順で操作してください。
+        （⬆️保存には初回のみトークン設定が必要です）
       </div>
       <div class="btn-row">
-        <button class="btn btn-sub btn-small" onclick="ghDownload()">⬇️ GitHubから取得</button>
-        <button class="btn btn-green btn-small" onclick="ghUpload()">⬆️ GitHubへ同期</button>
+        <button class="btn btn-sub btn-small" onclick="ghDownload()">⬇️ 受け取る<br><span style="font-size:11px; font-weight:normal">（クラウド → この端末）</span></button>
+        <button class="btn btn-green btn-small" onclick="ghUpload()">⬆️ 保存する<br><span style="font-size:11px; font-weight:normal">（この端末 → クラウド）</span></button>
       </div>
+      <div class="empty-note" style="margin-top:8px">⬇️＝この端末の議題が置き換わる ／ ⬆️＝クラウド（全端末共有）の議題が置き換わる</div>
       <div class="empty-note" id="gh-status" style="margin-top:10px"></div>
       <details style="margin-top:10px; font-size:13px; color:var(--muted)">
         <summary style="cursor:pointer; font-weight:bold">🔑 トークン設定<span id="gh-token-state"></span></summary>
@@ -402,7 +404,8 @@ let state = {
   // ジャンル: { name, items } / items は wolf=[a,b]のペア配列, spy=文字列配列
   wolfGenres: [],
   spyGenres: [],
-  ghToken: ''
+  ghToken: '',
+  ghKnownSha: ''
 };
 let game = null;
 let timer = { remain: 0, total: 0, id: null, paused: false };
@@ -806,19 +809,36 @@ function saveGhToken() {
   persist();
   input.value = '';
   renderGhTokenState();
-  ghStatus('🔑 トークンを保存しました。「⬆️ GitHubへ同期」が使えます。');
+  ghStatus('🔑 トークンを保存しました。「⬆️ 保存する」が使えます。');
+}
+/* クラウド(GitHub)のファイル内容とSHAを取得してUTF-8デコード */
+async function ghFetchRemote(withAuth) {
+  const headers = { Accept: 'application/vnd.github+json' };
+  if (withAuth && state.ghToken) headers.Authorization = 'Bearer ' + state.ghToken;
+  const res = await fetch(GH_API + '?ref=' + GH.branch, { headers, cache: 'no-store' });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const meta = await res.json();
+  const data = JSON.parse(decodeURIComponent(escape(atob(String(meta.content).replace(/\s/g, '')))));
+  return { sha: meta.sha, data };
 }
 async function ghUpload() {
   if (!state.ghToken) {
     alert('先に「🔑 トークン設定」からGitHubトークンを保存してください');
     return;
   }
-  if (!confirm('現在の議題データをGitHubにアップロードして、全端末の共有データを更新します。よろしいですか？')) return;
-  ghStatus('⏳ アップロード中…');
+  if (!confirm('この端末の議題をクラウドに保存します。\n全端末で共有している議題が、この端末の内容に置き換わります。よろしいですか？')) return;
+  ghStatus('⏳ 保存中…');
   try {
     const headers = { Accept: 'application/vnd.github+json', Authorization: 'Bearer ' + state.ghToken };
     const cur = await fetch(GH_API + '?ref=' + GH.branch, { headers, cache: 'no-store' });
     const sha = cur.ok ? (await cur.json()).sha : undefined;
+    // 誤操作ガード: この端末が最後に受け取った版とクラウドの現在版が違う＝他端末の更新を上書きする恐れ
+    if (sha && sha !== state.ghKnownSha) {
+      if (!confirm('⚠️ クラウドの議題は、この端末が受け取ったあとに更新されています（他の端末から保存された可能性があります）。\nこのまま保存すると、その更新は消えて この端末の内容で上書きされます。\n\n本当に保存しますか？（キャンセルして先に「⬇️ 受け取る」のがおすすめです）')) {
+        ghStatus('');
+        return;
+      }
+    }
     const data = {
       app: 'ngp-party-game', version: 2, exportedAt: new Date().toISOString(),
       wolfGenres: state.wolfGenres, spyGenres: state.spyGenres
@@ -828,25 +848,26 @@ async function ghUpload() {
     if (sha) body.sha = sha;
     const res = await fetch(GH_API, { method: 'PUT', headers, body: JSON.stringify(body) });
     if (!res.ok) throw new Error('HTTP ' + res.status);
-    ghStatus('✅ GitHubに同期しました！他の端末では「⬇️ GitHubから取得」ですぐ反映できます。');
+    const put = await res.json();
+    if (put && put.content && put.content.sha) state.ghKnownSha = put.content.sha;
+    persist();
+    ghStatus('✅ クラウドに保存しました！他の端末では「⬇️ 受け取る」で反映されます。');
   } catch (e) {
-    ghStatus('❌ 同期に失敗しました（' + e.message + '）。トークンの権限（Contents: Read and write）を確認してください。');
+    ghStatus('❌ 保存に失敗しました（' + e.message + '）。トークンの権限（Contents: Read and write）を確認してください。');
   }
 }
 async function ghDownload() {
-  ghStatus('⏳ 取得中…');
+  if (!confirm('クラウドの議題を受け取ります。\nこの端末の議題は、クラウドの内容に置き換わります。よろしいですか？')) return;
+  ghStatus('⏳ 受け取り中…');
   try {
-    const headers = { Accept: 'application/vnd.github.raw' };
-    if (state.ghToken) headers.Authorization = 'Bearer ' + state.ghToken;
-    const res = await fetch(GH_API + '?ref=' + GH.branch, { headers, cache: 'no-store' });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
-    if (!validThemeData(data)) throw new Error('データ形式が不正です');
-    if (!confirm('現在の議題データをGitHub上の内容で置き換えます。よろしいですか？')) { ghStatus(''); return; }
-    applyThemeData(data);
-    ghStatus('✅ GitHubから最新の議題を取得しました！');
+    const remote = await ghFetchRemote(true);
+    if (!validThemeData(remote.data)) throw new Error('データ形式が不正です');
+    applyThemeData(remote.data);
+    state.ghKnownSha = remote.sha;
+    persist();
+    ghStatus('✅ クラウドの議題を受け取りました！');
   } catch (e) {
-    ghStatus('❌ 取得に失敗しました（' + e.message + '）');
+    ghStatus('❌ 受け取りに失敗しました（' + e.message + '）');
   }
 }
 
@@ -1122,23 +1143,24 @@ setMode(state.mode);
 // GitHub API（即時反映）を優先し、失敗時は同じ場所の ngp-odai.json を使う
 if (!state.wolfGenres.length && !state.spyGenres.length) {
   (async () => {
-    let data = null;
+    let data = null, sha = '';
     try {
-      const r = await fetch(GH_API + '?ref=' + GH.branch, {
-        headers: { Accept: 'application/vnd.github.raw' }, cache: 'no-store'
-      });
-      if (r.ok) data = await r.json();
+      const remote = await ghFetchRemote(false);
+      data = remote.data;
+      sha = remote.sha;
     } catch (e) {}
     if (!validThemeData(data)) {
       try {
         const r2 = await fetch('ngp-odai.json', { cache: 'no-store' });
         if (r2.ok) data = await r2.json();
+        sha = '';
       } catch (e) {}
     }
     if (!validThemeData(data)) return;
     if (state.wolfGenres.length || state.spyGenres.length) return;
     state.wolfGenres = data.wolfGenres;
     state.spyGenres = data.spyGenres;
+    if (sha) state.ghKnownSha = sha;
     persist();
     renderCategories();
   })();
