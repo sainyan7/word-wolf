@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NGP パーティゲーム — ワードウルフ &amp; スパイ</title>
+<title>NGP 閣議 — 造反者とスパイを探せ</title>
 <style>
   :root {
     --bg1: #1a1c2e;
@@ -185,15 +185,15 @@
 <body>
 <div id="app">
   <header class="app-header">
-    <h1>🎉 NGP パーティゲーム</h1>
-    <div class="sub">WORD WOLF &amp; SPY</div>
+    <h1>🏛️ NGP 閣議</h1>
+    <div class="sub">NGP CABINET MEETING</div>
   </header>
 
   <!-- ============ SETUP ============ -->
   <section id="screen-setup" class="screen active">
     <div class="mode-tabs">
-      <button class="mode-tab selected" id="tab-wolf" onclick="setMode('wolf')"><span class="mode-emoji">🐺</span>ワードウルフ</button>
-      <button class="mode-tab" id="tab-spy" onclick="setMode('spy')"><span class="mode-emoji">🕵️</span>スパイ</button>
+      <button class="mode-tab selected" id="tab-wolf" onclick="setMode('wolf')"><span class="mode-emoji">🐺</span>造反者を探せ</button>
+      <button class="mode-tab" id="tab-spy" onclick="setMode('spy')"><span class="mode-emoji">🕵️</span>スパイを探せ</button>
     </div>
     <div class="mode-desc" id="mode-desc"></div>
 
@@ -203,9 +203,9 @@
     </details>
 
     <div class="card">
-      <h2>プレイヤー</h2>
+      <h2>閣僚名簿</h2>
       <div class="row">
-        <label>人数</label>
+        <label>出席人数</label>
         <div class="stepper">
           <button onclick="changePlayers(-1)">−</button>
           <span class="value" id="player-count">5</span>
@@ -221,20 +221,20 @@
         </div>
       </div>
       <div class="row">
-        <label>名前<span class="hint">タップして変更できます</span></label>
+        <label>閣僚名<span class="hint">タップして変更できます</span></label>
       </div>
       <div class="player-list" id="player-list"></div>
     </div>
 
     <div class="card">
-      <h2>お題・時間</h2>
+      <h2>議題・時間</h2>
       <div class="row">
-        <label>お題のジャンル</label>
+        <label>議題のジャンル</label>
       </div>
       <select id="category-select" class="mt10" onchange="saveSettings()"></select>
-      <button class="btn btn-sub btn-small mt10" onclick="openThemes()">⚙️ お題の設定（追加・編集・削除）</button>
+      <button class="btn btn-sub btn-small mt10" onclick="openThemes()">⚙️ 議題の設定（追加・編集・削除）</button>
       <div class="row mt16">
-        <label>議論時間</label>
+        <label>閣議時間</label>
       </div>
       <select id="time-select" onchange="saveSettings()">
         <option value="60">1分</option>
@@ -247,7 +247,7 @@
       </select>
     </div>
 
-    <button class="btn btn-primary" onclick="startGame()">🎮 ゲームスタート</button>
+    <button class="btn btn-primary" onclick="startGame()">🏛️ 閣議を開会する</button>
   </section>
 
   <!-- ============ THEMES MANAGER ============ -->
@@ -255,8 +255,8 @@
     <button class="btn btn-ghost btn-small" onclick="closeThemes()" style="margin-bottom:16px">← ゲーム設定に戻る</button>
 
     <div class="mode-tabs small">
-      <button class="mode-tab" id="ttab-wolf" onclick="setThemesMode('wolf')"><span class="mode-emoji">🐺</span>ワードウルフのお題</button>
-      <button class="mode-tab" id="ttab-spy" onclick="setThemesMode('spy')"><span class="mode-emoji">🕵️</span>スパイのお題</button>
+      <button class="mode-tab" id="ttab-wolf" onclick="setThemesMode('wolf')"><span class="mode-emoji">🐺</span>造反者モードの議題</button>
+      <button class="mode-tab" id="ttab-spy" onclick="setThemesMode('spy')"><span class="mode-emoji">🕵️</span>スパイモードの議題</button>
     </div>
     <div class="mode-desc" id="themes-desc"></div>
 
@@ -275,7 +275,7 @@
     <div class="card">
       <h2>☁️ GitHub同期（全端末で共有）</h2>
       <div class="empty-note" style="margin:0 0 12px; text-align:left">
-        「GitHubへ同期」すると、このアプリを開いたすべての端末で同じお題が使えるようになります
+        「GitHubへ同期」すると、このアプリを開いたすべての端末で同じ議題が使えるようになります
         （初回アクセス時に自動で読み込まれます）。同期にはGitHubトークンの設定（初回のみ）が必要です。
       </div>
       <div class="btn-row">
@@ -304,8 +304,8 @@
     <div class="card">
       <h2>💾 ファイルでの受け渡し（バックアップ用）</h2>
       <div class="btn-row">
-        <button class="btn btn-sub btn-small" onclick="exportThemes()">⬇️ お題データを書き出し</button>
-        <button class="btn btn-sub btn-small" onclick="document.getElementById('import-file').click()">⬆️ お題データを読み込み</button>
+        <button class="btn btn-sub btn-small" onclick="exportThemes()">⬇️ 議題データを書き出し</button>
+        <button class="btn btn-sub btn-small" onclick="document.getElementById('import-file').click()">⬆️ 議題データを読み込み</button>
       </div>
       <input type="file" id="import-file" accept=".json,application/json" style="display:none" onchange="importThemes(this)">
     </div>
@@ -320,16 +320,16 @@
     <div class="card pass-card" id="pass-card">
       <div class="pass-emoji">🤫</div>
       <div class="who" id="pass-name"></div>
-      <div class="note">さんに PC（画面）を向けてください。<br>他の人は見ないでね！</div>
-      <button class="btn btn-primary" onclick="showWord()">👀 自分のお題を見る</button>
+      <div class="note">閣下に PC（画面）を向けてください。<br>他の閣僚は見ないでください！</div>
+      <button class="btn btn-primary" onclick="showWord()">📜 機密文書を開く</button>
     </div>
 
     <div class="card word-card" id="word-card" style="display:none">
-      <div class="label" id="word-label">あなたのお題</div>
+      <div class="label" id="word-label">あなたに通達された議題</div>
       <div class="word" id="word-text"></div>
       <div id="role-area"></div>
       <div class="sub-note" id="word-note"></div>
-      <button class="btn btn-green mt16" onclick="nextReveal()" id="next-reveal-btn">✅ 確認した（次の人へ）</button>
+      <button class="btn btn-green mt16" onclick="nextReveal()" id="next-reveal-btn">✅ 承知した（次の閣僚へ）</button>
     </div>
 
     <button class="btn btn-ghost" onclick="confirmQuit()">← 設定に戻る</button>
@@ -338,14 +338,14 @@
   <!-- ============ DISCUSSION ============ -->
   <section id="screen-discussion" class="screen">
     <div class="card timer-card">
-      <div class="timer-status" id="timer-status">🗣️ 議論タイム！</div>
+      <div class="timer-status" id="timer-status">🏛️ 閣議中！</div>
       <div class="timer-display" id="timer-display">5:00</div>
       <div class="timer-bar-wrap"><div class="timer-bar" id="timer-bar" style="width:100%"></div></div>
       <div class="btn-row">
         <button class="btn btn-sub" id="pause-btn" onclick="togglePause()">⏸ 一時停止</button>
         <button class="btn btn-sub" onclick="extendTimer()">＋1分</button>
       </div>
-      <button class="btn btn-pink mt10" onclick="goVote()">🗳️ 議論を終えて投票へ</button>
+      <button class="btn btn-pink mt10" onclick="goVote()">🗳️ 閣議を打ち切って追及へ</button>
     </div>
 
     <div class="card" style="padding:14px 18px; font-size:13px; color:var(--muted); line-height:1.9" id="discussion-hint"></div>
@@ -355,19 +355,19 @@
   <!-- ============ VOTE / RESULT ============ -->
   <section id="screen-result" class="screen">
     <div class="card reveal-cover" id="vote-card">
-      <div class="big">🫵 せーの、で指をさせ！</div>
+      <div class="big">🫵 せーの、で疑わしき閣僚を指せ！</div>
       <div class="note" id="vote-note"></div>
-      <button class="btn btn-pink" onclick="showResult()">🎭 結果発表！</button>
+      <button class="btn btn-pink" onclick="showResult()">🎭 真相を公開！</button>
     </div>
 
     <div id="result-body" style="display:none">
       <div class="card">
-        <h2 id="result-title">結果発表</h2>
+        <h2 id="result-title">閣議の真相</h2>
         <div class="result-word-row" id="result-words" style="display:none"></div>
         <div class="result-players" id="result-players"></div>
       </div>
       <div class="card" style="padding:14px 18px; font-size:13px; color:var(--muted); line-height:1.9" id="result-hint"></div>
-      <button class="btn btn-primary" onclick="playAgain()">🔁 同じ設定でもう一回</button>
+      <button class="btn btn-primary" onclick="playAgain()">🔁 同じ設定で次の閣議へ</button>
       <button class="btn btn-ghost" onclick="backToSetup()">⚙️ 設定に戻る</button>
     </div>
   </section>
@@ -380,10 +380,10 @@
    用語設定 — ゲーム内の呼び方はここをまとめて変えられます
    ================================================================= */
 const TERMS = {
-  wolfMajority: '多数派',   // ワードウルフ: 多いほうのお題を持つ人
-  wolfMinority: '少数派',   // ワードウルフ: 少ないほうのお題を持つ人（＝仲間はずれ）
-  spyCitizen:   '同胞',     // スパイ: お題を知っている人
-  spySpy:       'スパイ'    // スパイ: お題を知らない人
+  wolfMajority: '主流派',   // 造反者モード: 多いほうの議題を通達された閣僚
+  wolfMinority: '造反者',   // 造反者モード: ひとりだけ違う議題を通達された閣僚
+  spyCitizen:   '閣僚',     // スパイモード: 議題を知っている人
+  spySpy:       'スパイ'    // スパイモード: 議題を知らない潜入者
 };
 
 /* GitHub同期の対象リポジトリ */
@@ -446,20 +446,20 @@ function setMode(mode) {
   document.getElementById('tab-wolf').classList.toggle('selected', mode === 'wolf');
   document.getElementById('tab-spy').classList.toggle('selected', mode === 'spy');
   document.getElementById('minority-label').innerHTML = mode === 'wolf'
-    ? `${TERMS.wolfMinority}の人数<span class="hint">違うお題を持つ人数</span>`
-    : `${TERMS.spySpy}の人数<span class="hint">お題を知らない人数</span>`;
+    ? `${TERMS.wolfMinority}の人数<span class="hint">違う議題を通達される人数</span>`
+    : `${TERMS.spySpy}の人数<span class="hint">議題を知らない人数</span>`;
   document.getElementById('mode-desc').textContent = mode === 'wolf'
-    ? `ひとりだけ違うお題を持つ「${TERMS.wolfMinority}」を、会話の中から探し出せ！`
-    : `お題を知らない「${TERMS.spySpy}」を質問で見つけ出せ！${TERMS.spySpy}はお題を推理しろ！`;
+    ? `閣議に紛れた「${TERMS.wolfMinority}」だけが違う議題を通達されている。噛み合わない発言からあぶり出せ！`
+    : `閣議に他国の${TERMS.spySpy}が潜入！議題を知らない${TERMS.spySpy}を質問であぶり出せ。${TERMS.spySpy}は議題を推理しろ！`;
   document.getElementById('help-body').innerHTML = mode === 'wolf'
-    ? `<b>① 配役</b>：全員にお題が配られますが、${TERMS.wolfMinority}だけ違うお題です。自分が${TERMS.wolfMajority}か${TERMS.wolfMinority}かは分かりません。<br>` +
-      `<b>② 議論</b>：お題について話し、「話が噛み合わない人」を探します。お題を直接言うのはNG！<br>` +
-      `<b>③ 投票</b>：時間が来たら「せーの」で${TERMS.wolfMinority}だと思う人を指差し。最多票の人が指名されます。<br>` +
-      `<b>④ 勝敗</b>：${TERMS.wolfMinority}を当てたら${TERMS.wolfMajority}の勝ち。外したら${TERMS.wolfMinority}の勝ち。指名された${TERMS.wolfMinority}が${TERMS.wolfMajority}のお題を当てたら逆転勝ち！`
-    : `<b>① 配役</b>：${TERMS.spySpy}以外の全員（${TERMS.spyCitizen}）に同じお題が知らされます。${TERMS.spySpy}は自分が${TERMS.spySpy}だと分かりますが、お題は知りません。<br>` +
-      `<b>② 議論</b>：順番に質問し合います（例:「そこにはよく行く？」）。${TERMS.spySpy}は話を合わせてバレないように！<br>` +
-      `<b>③ 投票</b>：時間が来たら「せーの」で${TERMS.spySpy}だと思う人を指差し。<br>` +
-      `<b>④ 勝敗</b>：${TERMS.spySpy}を当てたら${TERMS.spyCitizen}の勝ち。外したら${TERMS.spySpy}の勝ち。指名された${TERMS.spySpy}がお題を当てたら逆転勝ち！`;
+    ? `<b>① 通達</b>：全閣僚に「議題」が通達されますが、${TERMS.wolfMinority}だけ違う議題です。自分が${TERMS.wolfMajority}か${TERMS.wolfMinority}かは分かりません。<br>` +
+      `<b>② 閣議</b>：議題について話し合い、「話が噛み合わない閣僚」を探します。議題を直接言うのはNG！<br>` +
+      `<b>③ 追及</b>：時間が来たら「せーの」で${TERMS.wolfMinority}だと思う閣僚を指差し。最多票の人が指名されます。<br>` +
+      `<b>④ 勝敗</b>：${TERMS.wolfMinority}を当てたら${TERMS.wolfMajority}の勝ち。外したら${TERMS.wolfMinority}の勝ち。指名された${TERMS.wolfMinority}が${TERMS.wolfMajority}の議題を言い当てたら逆転勝ち！`
+    : `<b>① 通達</b>：${TERMS.spySpy}以外の全${TERMS.spyCitizen}に同じ議題が通達されます。${TERMS.spySpy}は自分が${TERMS.spySpy}だと分かりますが、議題を知りません。<br>` +
+      `<b>② 閣議</b>：順番に質問し合います（例:「その政策、予算は足りそう？」）。${TERMS.spySpy}は話を合わせてバレないように！<br>` +
+      `<b>③ 追及</b>：時間が来たら「せーの」で${TERMS.spySpy}だと思う閣僚を指差し。<br>` +
+      `<b>④ 勝敗</b>：${TERMS.spySpy}を当てたら${TERMS.spyCitizen}の勝ち。外したら${TERMS.spySpy}の勝ち。指名された${TERMS.spySpy}が議題を当てたら逆転勝ち！`;
   renderCategories();
   persist();
 }
@@ -487,7 +487,7 @@ function renderPlayers() {
     const input = document.createElement('input');
     input.type = 'text';
     input.maxLength = 12;
-    input.placeholder = 'プレイヤー' + (i + 1);
+    input.placeholder = '閣僚' + (i + 1);
     input.value = state.names[i] || '';
     input.addEventListener('input', () => { state.names[i] = input.value; persist(); });
     list.appendChild(input);
@@ -495,7 +495,7 @@ function renderPlayers() {
 }
 
 function playerName(i) {
-  return (state.names[i] || '').trim() || 'プレイヤー' + (i + 1);
+  return (state.names[i] || '').trim() || '閣僚' + (i + 1);
 }
 
 function currentModeGenres() {
@@ -541,8 +541,8 @@ function setThemesMode(mode) {
   document.getElementById('ttab-wolf').classList.toggle('selected', mode === 'wolf');
   document.getElementById('ttab-spy').classList.toggle('selected', mode === 'spy');
   document.getElementById('themes-desc').textContent = mode === 'wolf'
-    ? 'お題は2つで1ペア。どちらが多数派になるかは毎回ランダムなので、作った本人も参加できます。'
-    : 'お題は1つずつ登録します（場所・人物・イベントなど）。';
+    ? `議題は2つで1ペア。どちらが${TERMS.wolfMajority}の議題になるかは毎回ランダムなので、作った本人も参加できます。`
+    : '議題は1つずつ登録します（施設・イベント・政策など）。';
   renderGenres();
 }
 function themesGenres() {
@@ -561,7 +561,7 @@ function addGenre() {
 }
 function deleteGenre(gi) {
   const g = themesGenres()[gi];
-  if (!confirm(`ジャンル「${g.name}」とその中のお題${g.items.length}個を削除しますか？`)) return;
+  if (!confirm(`ジャンル「${g.name}」とその中の議題${g.items.length}個を削除しますか？`)) return;
   themesGenres().splice(gi, 1);
   editing = null;
   persist();
@@ -572,11 +572,11 @@ function addItem(gi) {
   if (themesMode === 'wolf') {
     const a = document.getElementById(`add-a-${gi}`).value.trim();
     const b = document.getElementById(`add-b-${gi}`).value.trim();
-    if (!a || !b) { alert('お題を2つとも入力してください'); return; }
+    if (!a || !b) { alert('議題を2つとも入力してください'); return; }
     g.items.push([a, b]);
   } else {
     const v = document.getElementById(`add-a-${gi}`).value.trim();
-    if (!v) { alert('お題を入力してください'); return; }
+    if (!v) { alert('議題を入力してください'); return; }
     g.items.push(v);
   }
   persist();
@@ -609,11 +609,11 @@ function saveEdit(gi, ii) {
   } else if (themesMode === 'wolf') {
     const a = document.getElementById('edit-a').value.trim();
     const b = document.getElementById('edit-b').value.trim();
-    if (!a || !b) { alert('お題を2つとも入力してください'); return; }
+    if (!a || !b) { alert('議題を2つとも入力してください'); return; }
     g.items[ii] = [a, b];
   } else {
     const v = document.getElementById('edit-a').value.trim();
-    if (!v) { alert('お題を入力してください'); return; }
+    if (!v) { alert('議題を入力してください'); return; }
     g.items[ii] = v;
   }
   editing = null;
@@ -629,7 +629,7 @@ function renderGenres() {
   if (!genres.length) {
     const card = document.createElement('div');
     card.className = 'card';
-    card.innerHTML = '<div class="empty-note">まだジャンルがありません。<br>上の欄からジャンルを作って、お題を追加してください。</div>';
+    card.innerHTML = '<div class="empty-note">まだジャンルがありません。<br>上の欄からジャンルを作って、議題を追加してください。</div>';
     box.appendChild(card);
     return;
   }
@@ -733,12 +733,12 @@ function renderGenreItems(card, g, gi) {
   add.className = 'add-row';
   add.innerHTML = themesMode === 'wolf'
     ? `<div class="inputs">
-         <input type="text" id="add-a-${gi}" placeholder="お題A（例: 定例会）">
-         <input type="text" id="add-b-${gi}" placeholder="お題B（例: 飲み会）">
+         <input type="text" id="add-a-${gi}" placeholder="議題A（例: 増税）">
+         <input type="text" id="add-b-${gi}" placeholder="議題B（例: 減税）">
        </div>
        <button class="btn btn-sub btn-small" style="width:auto" onclick="addItem(${gi})">＋</button>`
     : `<div class="inputs">
-         <input type="text" id="add-a-${gi}" placeholder="お題（例: 合宿の宿）">
+         <input type="text" id="add-a-${gi}" placeholder="議題（例: 軍事パレード）">
        </div>
        <button class="btn btn-sub btn-small" style="width:auto" onclick="addItem(${gi})">＋</button>`;
   card.appendChild(add);
@@ -769,11 +769,11 @@ function importThemes(input) {
     try {
       const data = JSON.parse(reader.result);
       if (!validThemeData(data)) throw new Error('bad');
-      if (!confirm('現在のお題データを読み込んだ内容で置き換えます。よろしいですか？')) return;
+      if (!confirm('現在の議題データを読み込んだ内容で置き換えます。よろしいですか？')) return;
       applyThemeData(data);
-      alert('お題データを読み込みました！');
+      alert('議題データを読み込みました！');
     } catch (e) {
-      alert('ファイルを読み込めませんでした。「お題データを書き出し」で保存したファイルを選んでください。');
+      alert('ファイルを読み込めませんでした。「議題データを書き出し」で保存したファイルを選んでください。');
     }
   };
   reader.readAsText(file);
@@ -813,7 +813,7 @@ async function ghUpload() {
     alert('先に「🔑 トークン設定」からGitHubトークンを保存してください');
     return;
   }
-  if (!confirm('現在のお題データをGitHubにアップロードして、全端末の共有データを更新します。よろしいですか？')) return;
+  if (!confirm('現在の議題データをGitHubにアップロードして、全端末の共有データを更新します。よろしいですか？')) return;
   ghStatus('⏳ アップロード中…');
   try {
     const headers = { Accept: 'application/vnd.github+json', Authorization: 'Bearer ' + state.ghToken };
@@ -842,9 +842,9 @@ async function ghDownload() {
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
     if (!validThemeData(data)) throw new Error('データ形式が不正です');
-    if (!confirm('現在のお題データをGitHub上の内容で置き換えます。よろしいですか？')) { ghStatus(''); return; }
+    if (!confirm('現在の議題データをGitHub上の内容で置き換えます。よろしいですか？')) { ghStatus(''); return; }
     applyThemeData(data);
-    ghStatus('✅ GitHubから最新のお題を取得しました！');
+    ghStatus('✅ GitHubから最新の議題を取得しました！');
   } catch (e) {
     ghStatus('❌ 取得に失敗しました（' + e.message + '）');
   }
@@ -878,7 +878,7 @@ function startGame() {
   const n = state.playerCount;
   const pool = poolItems();
   if (!pool.length) {
-    alert('お題がまだ登録されていません。\n「お題の設定」からジャンルとお題を追加してください。');
+    alert('議題がまだ登録されていません。\n「議題の設定」からジャンルと議題を追加してください。');
     openThemes();
     return;
   }
@@ -915,7 +915,7 @@ function startGame() {
 /* ================= REVEAL ================= */
 function renderPass() {
   const i = game.revealIndex;
-  document.getElementById('turn-indicator').textContent = 'お題の確認 ' + (i + 1) + ' / ' + game.assignments.length;
+  document.getElementById('turn-indicator').textContent = '機密文書の確認 ' + (i + 1) + ' / ' + game.assignments.length;
   document.getElementById('pass-name').textContent = game.assignments[i].name;
   document.getElementById('pass-card').style.display = '';
   document.getElementById('word-card').style.display = 'none';
@@ -929,26 +929,26 @@ function showWord() {
   wordEl.classList.remove('spy-word');
 
   if (game.mode === 'wolf') {
-    document.getElementById('word-label').textContent = 'あなたのお題';
+    document.getElementById('word-label').textContent = 'あなたに通達された議題';
     wordEl.textContent = a.word;
     roleEl.innerHTML = '';
-    noteEl.textContent = `自分が${TERMS.wolfMajority}か${TERMS.wolfMinority}かは分かりません。お題をそのまま口に出さないよう注意！`;
+    noteEl.textContent = `自分が${TERMS.wolfMajority}か${TERMS.wolfMinority}かは分かりません。議題をそのまま口に出さないよう注意！`;
   } else {
     if (a.isWolf) {
-      document.getElementById('word-label').textContent = 'あなたの役割';
-      wordEl.textContent = `🕵️ あなたは${TERMS.spySpy}！`;
+      document.getElementById('word-label').textContent = 'あなたの正体';
+      wordEl.textContent = `🕵️ あなたは他国の${TERMS.spySpy}！`;
       wordEl.classList.add('spy-word');
-      roleEl.innerHTML = '<span class="role-badge role-spy">お題は知らされません</span>';
-      noteEl.textContent = 'みんなの会話からお題を推理して、バレずに話を合わせよう。';
+      roleEl.innerHTML = '<span class="role-badge role-spy">議題は知らされていません</span>';
+      noteEl.textContent = `正規の${TERMS.spyCitizen}になりすまし、みんなの会話から議題を推理せよ。`;
     } else {
-      document.getElementById('word-label').textContent = `お題（${TERMS.spySpy}には秘密）`;
+      document.getElementById('word-label').textContent = `本日の議題（${TERMS.spySpy}には秘密）`;
       wordEl.textContent = a.word;
-      roleEl.innerHTML = `<span class="role-badge role-citizen">あなたは${TERMS.spyCitizen}</span>`;
-      noteEl.textContent = `${TERMS.spySpy}に悟られないよう、お題ズバリの発言は避けつつ質問に答えよう。`;
+      roleEl.innerHTML = `<span class="role-badge role-citizen">あなたは正規の${TERMS.spyCitizen}</span>`;
+      noteEl.textContent = `${TERMS.spySpy}に悟られないよう、議題ズバリの発言は避けつつ質問に答えよう。`;
     }
   }
   const isLast = game.revealIndex === game.assignments.length - 1;
-  document.getElementById('next-reveal-btn').textContent = isLast ? '✅ 確認した（議論スタート！）' : '✅ 確認した（次の人へ）';
+  document.getElementById('next-reveal-btn').textContent = isLast ? '✅ 承知した（閣議を開会！）' : '✅ 承知した（次の閣僚へ）';
   document.getElementById('pass-card').style.display = 'none';
   document.getElementById('word-card').style.display = '';
 }
@@ -966,8 +966,8 @@ function nextReveal() {
 function startDiscussion() {
   showScreen('screen-discussion');
   document.getElementById('discussion-hint').innerHTML = game.mode === 'wolf'
-    ? '💡 ヒント：「それって好き？」「最後に体験したのいつ？」など、お題を直接言わずに探り合おう。'
-    : `💡 ヒント：順番に相手を指名して質問しよう。「よく行く？」「誰と行く？」など。${TERMS.spySpy}は自然に答えてバレを回避！`;
+    ? '💡 ヒント：「その政策に賛成？」「予算はどれくらい必要？」など、議題を直接言わずに探り合おう。'
+    : `💡 ヒント：順番に閣僚を指名して質問しよう。「担当省庁は？」「国民の反応は？」など。${TERMS.spySpy}は知ったかぶりで乗り切れ！`;
   startTimer(state.time);
 }
 
@@ -975,7 +975,7 @@ function startTimer(sec) {
   clearInterval(timer.id);
   timer.remain = sec; timer.total = sec; timer.paused = false;
   document.getElementById('pause-btn').textContent = '⏸ 一時停止';
-  document.getElementById('timer-status').textContent = '🗣️ 議論タイム！';
+  document.getElementById('timer-status').textContent = '🏛️ 閣議中！';
   updateTimerUI();
   timer.id = setInterval(tick, 1000);
 }
@@ -986,7 +986,7 @@ function tick() {
   if (timer.remain <= 0) {
     clearInterval(timer.id);
     timer.id = null;
-    document.getElementById('timer-status').textContent = '⏰ 時間切れ！投票へ！';
+    document.getElementById('timer-status').textContent = '⏰ 時間切れ！追及へ！';
     beep();
   }
 }
@@ -1002,13 +1002,13 @@ function togglePause() {
   if (!timer.id) return;
   timer.paused = !timer.paused;
   document.getElementById('pause-btn').textContent = timer.paused ? '▶ 再開' : '⏸ 一時停止';
-  document.getElementById('timer-status').textContent = timer.paused ? '⏸ 一時停止中' : '🗣️ 議論タイム！';
+  document.getElementById('timer-status').textContent = timer.paused ? '⏸ 一時停止中' : '🏛️ 閣議中！';
 }
 function extendTimer() {
   timer.remain += 60; timer.total += 60;
   if (!timer.id) {
     timer.paused = false;
-    document.getElementById('timer-status').textContent = '🗣️ 議論タイム！';
+    document.getElementById('timer-status').textContent = '🏛️ 閣議中！';
     timer.id = setInterval(tick, 1000);
   }
   updateTimerUI();
@@ -1035,8 +1035,8 @@ function goVote() {
   document.getElementById('vote-card').style.display = '';
   document.getElementById('result-body').style.display = 'none';
   document.getElementById('vote-note').innerHTML = game.mode === 'wolf'
-    ? `${TERMS.wolfMinority}（仲間はずれ）だと思う人を全員で一斉に指差そう。<br>指名する人が決まったら結果発表！`
-    : `${TERMS.spySpy}だと思う人を全員で一斉に指差そう。<br>指名された${TERMS.spySpy}は、お題を1回だけ宣言して当てれば逆転勝ち！`;
+    ? `${TERMS.wolfMinority}だと思う閣僚を全員で一斉に指差そう。<br>指名する人が決まったら真相を公開！`
+    : `${TERMS.spySpy}だと思う閣僚を全員で一斉に指差そう。<br>指名された${TERMS.spySpy}は、議題を1回だけ宣言して当てれば逆転勝ち！`;
 }
 
 function showResult() {
@@ -1048,7 +1048,7 @@ function showResult() {
   box.innerHTML = '';
 
   if (game.mode === 'wolf') {
-    document.getElementById('result-title').textContent = '🎭 結果発表 — 全員のお題';
+    document.getElementById('result-title').textContent = '🎭 閣議の真相 — 全閣僚の議題';
     words.style.display = 'none';
     words.innerHTML = '';
     game.assignments.forEach(a => {
@@ -1070,12 +1070,12 @@ function showResult() {
       box.appendChild(div);
     });
     document.getElementById('result-hint').textContent =
-      `💡 ${TERMS.wolfMinority}を当てられたら${TERMS.wolfMajority}の勝ち！外れたら${TERMS.wolfMinority}の勝ち。指名された${TERMS.wolfMinority}が${TERMS.wolfMajority}のお題を当てたら逆転勝ち！`;
+      `💡 ${TERMS.wolfMinority}を当てられたら${TERMS.wolfMajority}の勝ち！外れたら${TERMS.wolfMinority}の勝ち。指名された${TERMS.wolfMinority}が${TERMS.wolfMajority}の議題を当てたら逆転勝ち！`;
   } else {
-    document.getElementById('result-title').textContent = '🕵️ 結果発表';
+    document.getElementById('result-title').textContent = '🕵️ 閣議の真相';
     words.style.display = '';
     words.innerHTML =
-      '<div class="result-word-box box-citizen"><div class="tag">お題</div><div class="w"></div></div>';
+      '<div class="result-word-box box-citizen"><div class="tag">議題</div><div class="w"></div></div>';
     words.children[0].querySelector('.w').textContent = game.location;
     game.assignments.forEach(a => {
       const div = document.createElement('div');
@@ -1090,7 +1090,7 @@ function showResult() {
       box.appendChild(div);
     });
     document.getElementById('result-hint').textContent =
-      `💡 ${TERMS.spySpy}を当てられたら${TERMS.spyCitizen}の勝ち！外れたら${TERMS.spySpy}の勝ち。指名された${TERMS.spySpy}がお題を当てたら逆転勝ち！`;
+      `💡 ${TERMS.spySpy}を当てられたら${TERMS.spyCitizen}の勝ち！外れたら${TERMS.spySpy}の勝ち。指名された${TERMS.spySpy}が議題を当てたら逆転勝ち！`;
   }
 }
 
@@ -1102,7 +1102,7 @@ function backToSetup() {
   showScreen('screen-setup');
 }
 function confirmQuit() {
-  if (confirm('ゲームを中断して設定に戻りますか？')) backToSetup();
+  if (confirm('閣議を中断して設定に戻りますか？')) backToSetup();
 }
 
 /* ================= SCREEN ================= */
@@ -1118,7 +1118,7 @@ renderPlayers();
 document.getElementById('time-select').value = String(state.time);
 setMode(state.mode);
 
-// 初回アクセス時（お題が空のとき）は、共有お題データを自動で読み込む
+// 初回アクセス時（議題が空のとき）は、共有議題データを自動で読み込む
 // GitHub API（即時反映）を優先し、失敗時は同じ場所の ngp-odai.json を使う
 if (!state.wolfGenres.length && !state.spyGenres.length) {
   (async () => {
