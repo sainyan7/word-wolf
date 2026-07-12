@@ -1018,6 +1018,21 @@ loadState();
 renderPlayers();
 document.getElementById('time-select').value = String(state.time);
 setMode(state.mode);
+
+// 初回アクセス時（お題が空のとき）は、同じ場所にある ngp-odai.json を自動で読み込む
+if (!state.wolfGenres.length && !state.spyGenres.length) {
+  fetch('ngp-odai.json')
+    .then(r => r.ok ? r.json() : null)
+    .then(data => {
+      if (!data || !Array.isArray(data.wolfGenres) || !Array.isArray(data.spyGenres)) return;
+      if (state.wolfGenres.length || state.spyGenres.length) return;
+      state.wolfGenres = data.wolfGenres;
+      state.spyGenres = data.spyGenres;
+      persist();
+      renderCategories();
+    })
+    .catch(() => {});
+}
 </script>
 </body>
 </html>
