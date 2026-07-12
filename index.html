@@ -273,11 +273,36 @@
     <div id="genre-list"></div>
 
     <div class="card">
-      <h2>💾 データの共有（別のパソコンと同期）</h2>
+      <h2>☁️ GitHub同期（全端末で共有）</h2>
       <div class="empty-note" style="margin:0 0 12px; text-align:left">
-        お題データはこのブラウザ内に保存されます。別のパソコンでも同じお題を使うには、
-        「書き出し」でファイルを保存（Dropboxのこのアプリのフォルダ推奨）→ もう一方のパソコンで「読み込み」してください。
+        「GitHubへ同期」すると、このアプリを開いたすべての端末で同じお題が使えるようになります
+        （初回アクセス時に自動で読み込まれます）。同期にはGitHubトークンの設定（初回のみ）が必要です。
       </div>
+      <div class="btn-row">
+        <button class="btn btn-sub btn-small" onclick="ghDownload()">⬇️ GitHubから取得</button>
+        <button class="btn btn-green btn-small" onclick="ghUpload()">⬆️ GitHubへ同期</button>
+      </div>
+      <div class="empty-note" id="gh-status" style="margin-top:10px"></div>
+      <details style="margin-top:10px; font-size:13px; color:var(--muted)">
+        <summary style="cursor:pointer; font-weight:bold">🔑 トークン設定<span id="gh-token-state"></span></summary>
+        <div style="margin-top:10px; line-height:1.8">
+          GitHub →（右上アイコン）Settings → Developer settings → Personal access tokens →
+          Fine-grained tokens → Generate new token。<br>
+          Repository access で <b>word-wolf</b> のみを選び、Permissions の <b>Contents</b> を
+          <b>Read and write</b> にして作成し、下に貼り付けてください。
+          トークンは<b>このブラウザ内にのみ</b>保存されます。
+        </div>
+        <div class="add-row">
+          <div class="inputs">
+            <input type="password" id="gh-token" placeholder="github_pat_... または ghp_...">
+          </div>
+          <button class="btn btn-sub btn-small" style="width:auto" onclick="saveGhToken()">保存</button>
+        </div>
+      </details>
+    </div>
+
+    <div class="card">
+      <h2>💾 ファイルでの受け渡し（バックアップ用）</h2>
       <div class="btn-row">
         <button class="btn btn-sub btn-small" onclick="exportThemes()">⬇️ お題データを書き出し</button>
         <button class="btn btn-sub btn-small" onclick="document.getElementById('import-file').click()">⬆️ お題データを読み込み</button>
@@ -361,6 +386,10 @@ const TERMS = {
   spySpy:       'スパイ'    // スパイ: お題を知らない人
 };
 
+/* GitHub同期の対象リポジトリ */
+const GH = { owner: 'sainyan7', repo: 'word-wolf', path: 'ngp-odai.json', branch: 'main' };
+const GH_API = `https://api.github.com/repos/${GH.owner}/${GH.repo}/contents/${GH.path}`;
+
 /* ================= STATE ================= */
 const LS_KEY = 'ngpww_v2';
 let state = {
@@ -372,7 +401,8 @@ let state = {
   time: 300,
   // ジャンル: { name, items } / items は wolf=[a,b]のペア配列, spy=文字列配列
   wolfGenres: [],
-  spyGenres: []
+  spyGenres: [],
+  ghToken: ''
 };
 let game = null;
 let timer = { remain: 0, total: 0, id: null, paused: false };
@@ -496,6 +526,8 @@ function openThemes() {
   themesMode = state.mode;
   editing = null;
   setThemesMode(themesMode);
+  renderGhTokenState();
+  ghStatus('');
   showScreen('screen-themes');
 }
 function closeThemes() {
@@ -736,19 +768,86 @@ function importThemes(input) {
   reader.onload = () => {
     try {
       const data = JSON.parse(reader.result);
-      if (!Array.isArray(data.wolfGenres) || !Array.isArray(data.spyGenres)) throw new Error('bad');
+      if (!validThemeData(data)) throw new Error('bad');
       if (!confirm('現在のお題データを読み込んだ内容で置き換えます。よろしいですか？')) return;
-      state.wolfGenres = data.wolfGenres;
-      state.spyGenres = data.spyGenres;
-      editing = null;
-      persist();
-      renderGenres();
+      applyThemeData(data);
       alert('お題データを読み込みました！');
     } catch (e) {
       alert('ファイルを読み込めませんでした。「お題データを書き出し」で保存したファイルを選んでください。');
     }
   };
   reader.readAsText(file);
+}
+
+/* ---- GitHub sync ---- */
+function validThemeData(data) {
+  return !!data && Array.isArray(data.wolfGenres) && Array.isArray(data.spyGenres);
+}
+function applyThemeData(data) {
+  state.wolfGenres = data.wolfGenres;
+  state.spyGenres = data.spyGenres;
+  editing = null;
+  persist();
+  renderGenres();
+}
+function ghStatus(msg) {
+  const el = document.getElementById('gh-status');
+  if (el) el.textContent = msg;
+}
+function renderGhTokenState() {
+  const el = document.getElementById('gh-token-state');
+  if (el) el.textContent = state.ghToken ? '（設定済み ✅）' : '（未設定）';
+}
+function saveGhToken() {
+  const input = document.getElementById('gh-token');
+  const v = input.value.trim();
+  if (!v) { alert('トークンを入力してください'); return; }
+  state.ghToken = v;
+  persist();
+  input.value = '';
+  renderGhTokenState();
+  ghStatus('🔑 トークンを保存しました。「⬆️ GitHubへ同期」が使えます。');
+}
+async function ghUpload() {
+  if (!state.ghToken) {
+    alert('先に「🔑 トークン設定」からGitHubトークンを保存してください');
+    return;
+  }
+  if (!confirm('現在のお題データをGitHubにアップロードして、全端末の共有データを更新します。よろしいですか？')) return;
+  ghStatus('⏳ アップロード中…');
+  try {
+    const headers = { Accept: 'application/vnd.github+json', Authorization: 'Bearer ' + state.ghToken };
+    const cur = await fetch(GH_API + '?ref=' + GH.branch, { headers, cache: 'no-store' });
+    const sha = cur.ok ? (await cur.json()).sha : undefined;
+    const data = {
+      app: 'ngp-party-game', version: 2, exportedAt: new Date().toISOString(),
+      wolfGenres: state.wolfGenres, spyGenres: state.spyGenres
+    };
+    const content = btoa(unescape(encodeURIComponent(JSON.stringify(data, null, 2))));
+    const body = { message: 'Update themes from app', content, branch: GH.branch };
+    if (sha) body.sha = sha;
+    const res = await fetch(GH_API, { method: 'PUT', headers, body: JSON.stringify(body) });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    ghStatus('✅ GitHubに同期しました！他の端末では「⬇️ GitHubから取得」ですぐ反映できます。');
+  } catch (e) {
+    ghStatus('❌ 同期に失敗しました（' + e.message + '）。トークンの権限（Contents: Read and write）を確認してください。');
+  }
+}
+async function ghDownload() {
+  ghStatus('⏳ 取得中…');
+  try {
+    const headers = { Accept: 'application/vnd.github.raw' };
+    if (state.ghToken) headers.Authorization = 'Bearer ' + state.ghToken;
+    const res = await fetch(GH_API + '?ref=' + GH.branch, { headers, cache: 'no-store' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    if (!validThemeData(data)) throw new Error('データ形式が不正です');
+    if (!confirm('現在のお題データをGitHub上の内容で置き換えます。よろしいですか？')) { ghStatus(''); return; }
+    applyThemeData(data);
+    ghStatus('✅ GitHubから最新のお題を取得しました！');
+  } catch (e) {
+    ghStatus('❌ 取得に失敗しました（' + e.message + '）');
+  }
 }
 
 /* ================= GAME LOGIC ================= */
@@ -1019,19 +1118,30 @@ renderPlayers();
 document.getElementById('time-select').value = String(state.time);
 setMode(state.mode);
 
-// 初回アクセス時（お題が空のとき）は、同じ場所にある ngp-odai.json を自動で読み込む
+// 初回アクセス時（お題が空のとき）は、共有お題データを自動で読み込む
+// GitHub API（即時反映）を優先し、失敗時は同じ場所の ngp-odai.json を使う
 if (!state.wolfGenres.length && !state.spyGenres.length) {
-  fetch('ngp-odai.json')
-    .then(r => r.ok ? r.json() : null)
-    .then(data => {
-      if (!data || !Array.isArray(data.wolfGenres) || !Array.isArray(data.spyGenres)) return;
-      if (state.wolfGenres.length || state.spyGenres.length) return;
-      state.wolfGenres = data.wolfGenres;
-      state.spyGenres = data.spyGenres;
-      persist();
-      renderCategories();
-    })
-    .catch(() => {});
+  (async () => {
+    let data = null;
+    try {
+      const r = await fetch(GH_API + '?ref=' + GH.branch, {
+        headers: { Accept: 'application/vnd.github.raw' }, cache: 'no-store'
+      });
+      if (r.ok) data = await r.json();
+    } catch (e) {}
+    if (!validThemeData(data)) {
+      try {
+        const r2 = await fetch('ngp-odai.json', { cache: 'no-store' });
+        if (r2.ok) data = await r2.json();
+      } catch (e) {}
+    }
+    if (!validThemeData(data)) return;
+    if (state.wolfGenres.length || state.spyGenres.length) return;
+    state.wolfGenres = data.wolfGenres;
+    state.spyGenres = data.spyGenres;
+    persist();
+    renderCategories();
+  })();
 }
 </script>
 </body>
