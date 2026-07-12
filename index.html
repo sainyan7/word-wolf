@@ -130,6 +130,14 @@
   details.help .help-body { background: rgba(255,255,255,.08); border-radius: 12px; padding: 14px 16px; line-height: 1.9; }
   details.help b { color: #fff; }
 
+  /* ---- online ---- */
+  input[type="checkbox"] { accent-color: var(--accent); width: 22px; height: 22px; flex-shrink: 0; }
+  .player-only { display: none !important; }
+  body.is-player .player-only { display: block !important; }
+  body.is-player .host-only { display: none !important; }
+  .lobby-code { font-size: 48px; font-weight: bold; letter-spacing: .2em; }
+  .seat-status { font-size: 12px; padding: 4px 12px; border-radius: 999px; font-weight: bold; white-space: nowrap; }
+
   /* ---- reveal ---- */
   .turn-indicator { text-align: center; color: #bdb8e8; font-size: 13px; margin-bottom: 12px; letter-spacing: .1em; }
   .pass-card { text-align: center; padding: 40px 20px; }
@@ -247,7 +255,72 @@
       </select>
     </div>
 
+    <div class="card">
+      <h2>🌐 オンライン配布</h2>
+      <div class="row">
+        <label>各自のスマホに議題を表示<span class="hint">ネット接続時のみ。スマホがない人はこのPCで確認できます</span></label>
+        <input type="checkbox" id="online-toggle" onchange="toggleOnline(this.checked)">
+      </div>
+    </div>
+
     <button class="btn btn-primary" onclick="startGame()">🏛️ 閣議を開会する</button>
+    <button class="btn btn-ghost mt10" onclick="openJoin('')">📱 閣議に参加する（プレイヤー用）</button>
+  </section>
+
+  <!-- ============ ONLINE: HOST LOBBY ============ -->
+  <section id="screen-lobby" class="screen">
+    <div class="card" style="text-align:center">
+      <h2>🌐 閣議室を開設しました</h2>
+      <div style="font-size:13px; color:var(--muted); margin-bottom:6px">部屋コード</div>
+      <div class="lobby-code" id="lobby-code"></div>
+      <div style="font-size:12px; color:var(--muted); margin:12px 0 4px">プレイヤーはスマホでこのURLを開くか、QRコードを読み取って参加</div>
+      <div id="lobby-url" style="font-size:13px; font-weight:bold; word-break:break-all"></div>
+      <img id="lobby-qr" alt="参加用QRコード" style="margin:12px auto 0; display:block; border-radius:8px; width:160px; height:160px">
+    </div>
+
+    <div class="card">
+      <h2>着席状況</h2>
+      <div class="result-players" id="lobby-seats"></div>
+      <button class="btn btn-sub btn-small mt10" onclick="hostRevealUnclaimed()">📜 未着席の閣僚はこの端末で確認する</button>
+    </div>
+
+    <button class="btn btn-primary" onclick="hostStartDiscussion()">🏛️ 閣議を開始する（タイマー開始）</button>
+    <button class="btn btn-ghost mt10" onclick="confirmQuit()">← 設定に戻る（部屋を閉じる）</button>
+  </section>
+
+  <!-- ============ ONLINE: PLAYER JOIN ============ -->
+  <section id="screen-join" class="screen">
+    <div class="card">
+      <h2>📱 閣議に参加</h2>
+      <div class="row"><label>部屋コード（4桁）<span class="hint">GMの画面に表示されています</span></label></div>
+      <input type="text" id="join-code" inputmode="numeric" maxlength="4" placeholder="例: 1234"
+             style="font-size:24px; text-align:center; letter-spacing:.3em">
+      <button class="btn btn-primary mt10" onclick="joinRoom()">入室する</button>
+    </div>
+    <button class="btn btn-ghost" onclick="leaveToSetup()">← 戻る</button>
+  </section>
+
+  <!-- ============ ONLINE: PLAYER MAIN ============ -->
+  <section id="screen-player" class="screen">
+    <div class="turn-indicator" id="player-room-label"></div>
+
+    <div class="card" id="seat-pick-card">
+      <h2>あなたの席（名前）を選んでください</h2>
+      <div class="result-players" id="seat-pick-list"></div>
+    </div>
+
+    <div id="player-main" style="display:none">
+      <div class="card word-card">
+        <div class="label" id="p-word-label">あなたに通達された議題</div>
+        <div class="word" id="p-word" style="display:none"></div>
+        <div id="p-role-area"></div>
+        <div class="sub-note" id="p-word-note">他の人に画面をのぞかれないよう注意！</div>
+        <button class="btn btn-primary mt16" id="p-toggle-word" onclick="togglePlayerWord()">📜 機密文書を開く</button>
+      </div>
+      <div class="card" id="p-status" style="padding:14px 18px; font-size:13px; color:var(--muted); line-height:1.9"></div>
+    </div>
+
+    <button class="btn btn-ghost" onclick="leaveToSetup()">← 退出する</button>
   </section>
 
   <!-- ============ THEMES MANAGER ============ -->
@@ -343,15 +416,20 @@
       <div class="timer-status" id="timer-status">🏛️ 閣議中！</div>
       <div class="timer-display" id="timer-display">5:00</div>
       <div class="timer-bar-wrap"><div class="timer-bar" id="timer-bar" style="width:100%"></div></div>
-      <div class="btn-row">
+      <div class="btn-row host-only">
         <button class="btn btn-sub" id="pause-btn" onclick="togglePause()">⏸ 一時停止</button>
         <button class="btn btn-sub" onclick="extendTimer()">＋1分</button>
       </div>
-      <button class="btn btn-pink mt10" onclick="goVote()">🗳️ 閣議を打ち切って追及へ</button>
+      <button class="btn btn-pink mt10 host-only" onclick="goVote()">🗳️ 閣議を打ち切って追及へ</button>
+    </div>
+
+    <div class="card player-only" id="p-disc-word" style="text-align:center; padding:16px">
+      <button class="btn btn-sub btn-small" onclick="togglePeek()">📜 自分の議題を確認する／隠す</button>
+      <div id="p-peek" style="display:none; font-size:22px; font-weight:bold; margin-top:10px; word-break:break-word"></div>
     </div>
 
     <div class="card" style="padding:14px 18px; font-size:13px; color:var(--muted); line-height:1.9" id="discussion-hint"></div>
-    <button class="btn btn-ghost" onclick="confirmQuit()">← 設定に戻る</button>
+    <button class="btn btn-ghost host-only" onclick="confirmQuit()">← 設定に戻る</button>
   </section>
 
   <!-- ============ VOTE / RESULT ============ -->
@@ -359,7 +437,8 @@
     <div class="card reveal-cover" id="vote-card">
       <div class="big">🫵 せーの、で疑わしき閣僚を指せ！</div>
       <div class="note" id="vote-note"></div>
-      <button class="btn btn-pink" onclick="showResult()">🎭 真相を公開！</button>
+      <button class="btn btn-pink host-only" onclick="showResult()">🎭 真相を公開！</button>
+      <div class="player-only" style="font-size:13px; color:var(--muted)">🕰️ GMの「真相を公開！」を待っています…</div>
     </div>
 
     <div id="result-body" style="display:none">
@@ -369,8 +448,11 @@
         <div class="result-players" id="result-players"></div>
       </div>
       <div class="card" style="padding:14px 18px; font-size:13px; color:var(--muted); line-height:1.9" id="result-hint"></div>
-      <button class="btn btn-primary" onclick="playAgain()">🔁 同じ設定で次の閣議へ</button>
-      <button class="btn btn-ghost" onclick="backToSetup()">⚙️ 設定に戻る</button>
+      <button class="btn btn-primary host-only" onclick="playAgain()">🔁 同じ設定で次の閣議へ</button>
+      <button class="btn btn-ghost host-only" onclick="backToSetup()">⚙️ 設定に戻る</button>
+      <div class="card player-only" style="padding:14px 18px; font-size:13px; color:var(--muted); line-height:1.9">
+        次の閣議はGMの端末から始まります。このまま待つと自動で次の議題が届きます。
+      </div>
     </div>
   </section>
 </div>
@@ -405,7 +487,8 @@ let state = {
   wolfGenres: [],
   spyGenres: [],
   ghToken: '',
-  ghKnownSha: ''
+  ghKnownSha: '',
+  online: false
 };
 let game = null;
 let timer = { remain: 0, total: 0, id: null, paused: false };
@@ -894,14 +977,13 @@ function poolItems() {
   return g ? g.items.slice() : [];
 }
 
-function startGame() {
-  saveSettings();
+function buildGame() {
   const n = state.playerCount;
   const pool = poolItems();
   if (!pool.length) {
     alert('議題がまだ登録されていません。\n「議題の設定」からジャンルと議題を追加してください。');
     openThemes();
-    return;
+    return false;
   }
 
   const idx = shuffle([...Array(n).keys()]).slice(0, state.wolfCount);
@@ -915,8 +997,7 @@ function startGame() {
       majorityWord: a, minorityWord: b,
       assignments: [...Array(n).keys()].map(i => ({
         name: playerName(i), isWolf: isWolf(i), word: isWolf(i) ? b : a
-      })),
-      revealIndex: 0
+      }))
     };
   } else {
     const loc = pick(pool);
@@ -925,25 +1006,46 @@ function startGame() {
       location: loc,
       assignments: [...Array(n).keys()].map(i => ({
         name: playerName(i), isWolf: isWolf(i), word: isWolf(i) ? null : loc
-      })),
-      revealIndex: 0
+      }))
     };
   }
+  game.revealOrder = [...Array(n).keys()];
+  game.revealIndex = 0;
+  game.returnToLobby = false;
+  return true;
+}
+
+function startGame() {
+  saveSettings();
+  if (!buildGame()) return;
+  if (state.online) {
+    if (!navigator.onLine) {
+      if (!confirm('ネット接続が確認できません。オンライン配布を使わず、この端末のみで開始しますか？')) return;
+      classicStart();
+      return;
+    }
+    startOnlineGame();
+  } else {
+    classicStart();
+  }
+}
+
+function classicStart() {
   showScreen('screen-reveal');
   renderPass();
 }
 
 /* ================= REVEAL ================= */
 function renderPass() {
-  const i = game.revealIndex;
-  document.getElementById('turn-indicator').textContent = '機密文書の確認 ' + (i + 1) + ' / ' + game.assignments.length;
-  document.getElementById('pass-name').textContent = game.assignments[i].name;
+  const seat = game.revealOrder[game.revealIndex];
+  document.getElementById('turn-indicator').textContent = '機密文書の確認 ' + (game.revealIndex + 1) + ' / ' + game.revealOrder.length;
+  document.getElementById('pass-name').textContent = game.assignments[seat].name;
   document.getElementById('pass-card').style.display = '';
   document.getElementById('word-card').style.display = 'none';
 }
 
 function showWord() {
-  const a = game.assignments[game.revealIndex];
+  const a = game.assignments[game.revealOrder[game.revealIndex]];
   const wordEl = document.getElementById('word-text');
   const roleEl = document.getElementById('role-area');
   const noteEl = document.getElementById('word-note');
@@ -968,16 +1070,23 @@ function showWord() {
       noteEl.textContent = `${TERMS.spySpy}に悟られないよう、議題ズバリの発言は避けつつ質問に答えよう。`;
     }
   }
-  const isLast = game.revealIndex === game.assignments.length - 1;
-  document.getElementById('next-reveal-btn').textContent = isLast ? '✅ 承知した（閣議を開会！）' : '✅ 承知した（次の閣僚へ）';
+  const isLast = game.revealIndex === game.revealOrder.length - 1;
+  document.getElementById('next-reveal-btn').textContent = isLast
+    ? (game.returnToLobby ? '✅ 承知した（受付画面へ戻る）' : '✅ 承知した（閣議を開会！）')
+    : '✅ 承知した（次の閣僚へ）';
   document.getElementById('pass-card').style.display = 'none';
   document.getElementById('word-card').style.display = '';
 }
 
 function nextReveal() {
   game.revealIndex++;
-  if (game.revealIndex >= game.assignments.length) {
-    startDiscussion();
+  if (game.revealIndex >= game.revealOrder.length) {
+    if (game.returnToLobby) {
+      game.returnToLobby = false;
+      showLobby();
+    } else {
+      startDiscussion();
+    }
   } else {
     renderPass();
   }
@@ -990,6 +1099,8 @@ function startDiscussion() {
     ? '💡 ヒント：「その政策に賛成？」「予算はどれくらい必要？」など、議題を直接言わずに探り合おう。'
     : `💡 ヒント：順番に閣僚を指名して質問しよう。「担当省庁は？」「国民の反応は？」など。${TERMS.spySpy}は知ったかぶりで乗り切れ！`;
   startTimer(state.time);
+  hostSyncPhase('discussion');
+  syncTimerToRoom();
 }
 
 function startTimer(sec) {
@@ -1024,6 +1135,7 @@ function togglePause() {
   timer.paused = !timer.paused;
   document.getElementById('pause-btn').textContent = timer.paused ? '▶ 再開' : '⏸ 一時停止';
   document.getElementById('timer-status').textContent = timer.paused ? '⏸ 一時停止中' : '🏛️ 閣議中！';
+  syncTimerToRoom();
 }
 function extendTimer() {
   timer.remain += 60; timer.total += 60;
@@ -1033,6 +1145,7 @@ function extendTimer() {
     timer.id = setInterval(tick, 1000);
   }
   updateTimerUI();
+  syncTimerToRoom();
 }
 
 function beep() {
@@ -1058,21 +1171,26 @@ function goVote() {
   document.getElementById('vote-note').innerHTML = game.mode === 'wolf'
     ? `${TERMS.wolfMinority}だと思う閣僚を全員で一斉に指差そう。<br>指名する人が決まったら真相を公開！`
     : `${TERMS.spySpy}だと思う閣僚を全員で一斉に指差そう。<br>指名された${TERMS.spySpy}は、議題を1回だけ宣言して当てれば逆転勝ち！`;
+  hostSyncPhase('vote');
 }
 
 function showResult() {
   document.getElementById('vote-card').style.display = 'none';
   document.getElementById('result-body').style.display = '';
+  renderResultData(game.assignments, game.mode);
+  hostSyncPhase('result');
+}
 
+function renderResultData(assignments, mode) {
   const words = document.getElementById('result-words');
   const box = document.getElementById('result-players');
   box.innerHTML = '';
 
-  if (game.mode === 'wolf') {
+  if (mode === 'wolf') {
     document.getElementById('result-title').textContent = '🎭 閣議の真相 — 全閣僚の議題';
     words.style.display = 'none';
     words.innerHTML = '';
-    game.assignments.forEach(a => {
+    assignments.forEach(a => {
       const div = document.createElement('div');
       div.className = 'result-player' + (a.isWolf ? ' is-wolf' : '');
       const nm = document.createElement('span');
@@ -1093,12 +1211,13 @@ function showResult() {
     document.getElementById('result-hint').textContent =
       `💡 ${TERMS.wolfMinority}を当てられたら${TERMS.wolfMajority}の勝ち！外れたら${TERMS.wolfMinority}の勝ち。指名された${TERMS.wolfMinority}が${TERMS.wolfMajority}の議題を当てたら逆転勝ち！`;
   } else {
+    const loc = (assignments.find(a => !a.isWolf) || {}).word || '';
     document.getElementById('result-title').textContent = '🕵️ 閣議の真相';
     words.style.display = '';
     words.innerHTML =
       '<div class="result-word-box box-citizen"><div class="tag">議題</div><div class="w"></div></div>';
-    words.children[0].querySelector('.w').textContent = game.location;
-    game.assignments.forEach(a => {
+    words.children[0].querySelector('.w').textContent = loc;
+    assignments.forEach(a => {
       const div = document.createElement('div');
       div.className = 'result-player' + (a.isWolf ? ' is-wolf' : '');
       const nm = document.createElement('span');
@@ -1115,15 +1234,424 @@ function showResult() {
   }
 }
 
-function playAgain() { startGame(); }
+function playAgain() {
+  if (onlineRoom && onlineRoom.isHost) {
+    saveSettings();
+    if (!buildGame()) return;
+    hostNextRound();
+  } else {
+    startGame();
+  }
+}
 
 function backToSetup() {
   clearInterval(timer.id); timer.id = null;
   game = null;
+  teardownOnline();
   showScreen('screen-setup');
 }
 function confirmQuit() {
-  if (confirm('閣議を中断して設定に戻りますか？')) backToSetup();
+  const msg = (onlineRoom && onlineRoom.isHost)
+    ? '部屋を閉じて設定に戻りますか？（プレイヤーは退出になります）'
+    : '閣議を中断して設定に戻りますか？';
+  if (confirm(msg)) backToSetup();
+}
+
+/* ================= オンライン配布 (Firebase) ================= */
+const FIREBASE_CONFIG = {
+  apiKey: 'AIzaSyAF2XjzGnQFJyrXicdb-NorXuiKmlFrliM',
+  authDomain: 'ngp-cabinet.firebaseapp.com',
+  projectId: 'ngp-cabinet',
+  appId: '1:1021779219313:web:81a4dbb4bff2aaf9309cd0'
+};
+const MAX_SEATS = 30;
+let fb = null;          // { db, uid, fs(モジュール) }
+let onlineRoom = null;  // { code, isHost, unsubs, seats, mySeat, room, ... }
+
+function toggleOnline(v) { state.online = v; persist(); }
+
+async function initFirebase() {
+  if (fb) return fb;
+  const base = 'https://www.gstatic.com/firebasejs/10.12.2/';
+  const [appM, authM, fsM] = await Promise.all([
+    import(base + 'firebase-app.js'),
+    import(base + 'firebase-auth.js'),
+    import(base + 'firebase-firestore.js')
+  ]);
+  const app = appM.initializeApp(FIREBASE_CONFIG);
+  const auth = authM.getAuth(app);
+  const cred = await authM.signInAnonymously(auth);
+  fb = { db: fsM.getFirestore(app), uid: cred.user.uid, fs: fsM };
+  return fb;
+}
+
+/* ---- GM（ホスト）側 ---- */
+async function startOnlineGame() {
+  try {
+    await initFirebase();
+    let code = (onlineRoom && onlineRoom.isHost) ? onlineRoom.code : null;
+    if (!code) {
+      for (let t = 0; t < 10; t++) {
+        const c = String(Math.floor(1000 + Math.random() * 9000));
+        const s = await fb.fs.getDoc(fb.fs.doc(fb.db, 'rooms', c));
+        if (!s.exists() || s.data().hostUid === fb.uid
+            || Date.now() - (s.data().createdAtMs || 0) > 12 * 3600 * 1000) { code = c; break; }
+      }
+    }
+    if (!code) throw new Error('部屋コードを確保できませんでした');
+    const isNew = !onlineRoom || !onlineRoom.isHost;
+    await writeRound(code, isNew);
+    if (isNew) {
+      onlineRoom = { code, isHost: true, unsubs: [], seats: [] };
+      subscribeHostSeats();
+    }
+    showLobby();
+  } catch (e) {
+    if (confirm('オンライン配布の開始に失敗しました（' + e.message + '）。\nこの端末のみで開始しますか？')) classicStart();
+  }
+}
+
+async function writeRound(code, resetClaims) {
+  const { doc, writeBatch } = fb.fs;
+  const b = writeBatch(fb.db);
+  b.set(doc(fb.db, 'rooms', code), {
+    hostUid: fb.uid, mode: game.mode, phase: 'lobby',
+    playerCount: game.assignments.length,
+    timer: { endsAt: null, paused: false, remainMs: null, duration: state.time },
+    createdAtMs: Date.now(), round: Date.now()
+  });
+  game.assignments.forEach((a, i) => {
+    const s = doc(fb.db, 'rooms', code, 'seats', String(i));
+    if (resetClaims) b.set(s, { i: i, name: a.name, claimedBy: null, viewed: false });
+    else b.set(s, { i: i, name: a.name, viewed: false }, { merge: true });
+    b.set(doc(fb.db, 'rooms', code, 'words', String(i)), { word: a.word === undefined ? null : a.word });
+    b.set(doc(fb.db, 'rooms', code, 'roles', String(i)), { isWolf: !!a.isWolf });
+  });
+  for (let i = game.assignments.length; i < MAX_SEATS; i++) {
+    b.delete(doc(fb.db, 'rooms', code, 'seats', String(i)));
+    b.delete(doc(fb.db, 'rooms', code, 'words', String(i)));
+    b.delete(doc(fb.db, 'rooms', code, 'roles', String(i)));
+  }
+  await b.commit();
+}
+
+function subscribeHostSeats() {
+  const un = fb.fs.onSnapshot(fb.fs.collection(fb.db, 'rooms', onlineRoom.code, 'seats'), snap => {
+    if (!onlineRoom || !onlineRoom.isHost) return;
+    onlineRoom.seats = snap.docs.map(d => d.data()).sort((a, b) => a.i - b.i);
+    renderLobbySeats();
+  });
+  onlineRoom.unsubs.push(un);
+}
+
+function showLobby() {
+  const url = location.origin + location.pathname + '?join=' + onlineRoom.code;
+  document.getElementById('lobby-code').textContent = onlineRoom.code;
+  document.getElementById('lobby-url').textContent = url;
+  document.getElementById('lobby-qr').src =
+    'https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=' + encodeURIComponent(url);
+  renderLobbySeats();
+  showScreen('screen-lobby');
+}
+
+function renderLobbySeats() {
+  const box = document.getElementById('lobby-seats');
+  if (!box || !onlineRoom) return;
+  box.innerHTML = '';
+  (onlineRoom.seats || []).forEach(s => {
+    const div = document.createElement('div');
+    div.className = 'result-player';
+    const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = s.name;
+    const badge = document.createElement('span');
+    badge.className = 'seat-status ' + (s.claimedBy ? 'role-citizen' : '');
+    if (!s.claimedBy) badge.style.background = '#eeecf8';
+    badge.textContent = s.claimedBy ? (s.viewed ? '👁 議題確認済み' : '✅ 着席') : '🪑 この端末で確認';
+    div.appendChild(nm); div.appendChild(badge);
+    box.appendChild(div);
+  });
+}
+
+function hostRevealUnclaimed() {
+  const un = (onlineRoom.seats || []).filter(s => !s.claimedBy).map(s => s.i);
+  if (!un.length) { alert('全員スマホで着席済みです。この端末での確認は不要です。'); return; }
+  game.revealOrder = un;
+  game.revealIndex = 0;
+  game.returnToLobby = true;
+  showScreen('screen-reveal');
+  renderPass();
+}
+
+function hostStartDiscussion() { startDiscussion(); }
+
+function hostSyncPhase(phase) {
+  if (!onlineRoom || !onlineRoom.isHost || !fb) return;
+  fb.fs.updateDoc(fb.fs.doc(fb.db, 'rooms', onlineRoom.code), { phase: phase }).catch(() => {});
+}
+
+function syncTimerToRoom() {
+  if (!onlineRoom || !onlineRoom.isHost || !fb) return;
+  fb.fs.updateDoc(fb.fs.doc(fb.db, 'rooms', onlineRoom.code), {
+    timer: {
+      endsAt: timer.paused ? null : Date.now() + Math.max(0, timer.remain) * 1000,
+      paused: timer.paused,
+      remainMs: Math.max(0, timer.remain) * 1000,
+      duration: timer.total
+    }
+  }).catch(() => {});
+}
+
+async function hostNextRound() {
+  try {
+    await writeRound(onlineRoom.code, false);
+    showLobby();
+  } catch (e) { alert('次の閣議の配布に失敗しました: ' + e.message); }
+}
+
+async function closeRoomDocs(code) {
+  try {
+    const { doc, writeBatch } = fb.fs;
+    const b = writeBatch(fb.db);
+    for (let i = 0; i < MAX_SEATS; i++) {
+      b.delete(doc(fb.db, 'rooms', code, 'seats', String(i)));
+      b.delete(doc(fb.db, 'rooms', code, 'words', String(i)));
+      b.delete(doc(fb.db, 'rooms', code, 'roles', String(i)));
+    }
+    b.delete(doc(fb.db, 'rooms', code));
+    await b.commit();
+  } catch (e) {}
+}
+
+function teardownOnline() {
+  if (!onlineRoom) return;
+  (onlineRoom.unsubs || []).forEach(u => { try { u(); } catch (e) {} });
+  if (onlineRoom.isHost && fb) closeRoomDocs(onlineRoom.code);
+  onlineRoom = null;
+  document.body.classList.remove('is-player');
+}
+
+/* ---- プレイヤー側 ---- */
+function openJoin(code) {
+  showScreen('screen-join');
+  if (code) document.getElementById('join-code').value = code;
+}
+
+async function joinRoom() {
+  const code = document.getElementById('join-code').value.trim();
+  if (!/^\d{4}$/.test(code)) { alert('4桁の部屋コードを入力してください'); return; }
+  try {
+    await initFirebase();
+    const snap = await fb.fs.getDoc(fb.fs.doc(fb.db, 'rooms', code));
+    if (!snap.exists()) { alert('部屋が見つかりません。コードを確認してください。'); return; }
+    teardownOnline();
+    onlineRoom = { code, isHost: false, unsubs: [], seats: [], mySeat: null, room: snap.data(), lastRound: null };
+    document.body.classList.add('is-player');
+    document.getElementById('player-room-label').textContent = '🌐 部屋コード ' + code;
+    document.getElementById('seat-pick-card').style.display = '';
+    document.getElementById('player-main').style.display = 'none';
+    subscribePlayer();
+    showScreen('screen-player');
+  } catch (e) { alert('入室に失敗しました: ' + e.message); }
+}
+
+function subscribePlayer() {
+  const { doc, collection, onSnapshot } = fb.fs;
+  onlineRoom.unsubs.push(onSnapshot(doc(fb.db, 'rooms', onlineRoom.code), s => {
+    if (!onlineRoom || onlineRoom.isHost) return;
+    if (!s.exists()) { alert('部屋が閉じられました。'); leaveToSetup(); return; }
+    onlineRoom.room = s.data();
+    onPlayerRoomChange();
+  }));
+  onlineRoom.unsubs.push(onSnapshot(collection(fb.db, 'rooms', onlineRoom.code, 'seats'), s => {
+    if (!onlineRoom || onlineRoom.isHost) return;
+    onlineRoom.seats = s.docs.map(d => d.data()).sort((a, b) => a.i - b.i);
+    if (onlineRoom.mySeat == null) {
+      const mine = onlineRoom.seats.find(x => x.claimedBy === fb.uid);
+      if (mine) claimSuccess(mine.i);
+      else renderSeatPick();
+    }
+  }));
+}
+
+function renderSeatPick() {
+  const box = document.getElementById('seat-pick-list');
+  box.innerHTML = '';
+  (onlineRoom.seats || []).forEach(s => {
+    const div = document.createElement('div');
+    div.className = 'result-player';
+    const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = s.name;
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-sub btn-small';
+    btn.style.width = 'auto';
+    if (s.claimedBy) { btn.textContent = '着席済み'; btn.disabled = true; btn.style.opacity = .5; }
+    else { btn.textContent = 'この席に着く'; btn.onclick = () => pickSeat(s.i); }
+    div.appendChild(nm); div.appendChild(btn);
+    box.appendChild(div);
+  });
+}
+
+async function pickSeat(i) {
+  try {
+    await fb.fs.runTransaction(fb.db, async tx => {
+      const ref = fb.fs.doc(fb.db, 'rooms', onlineRoom.code, 'seats', String(i));
+      const s = await tx.get(ref);
+      if (!s.exists()) throw new Error('席が見つかりません');
+      const d = s.data();
+      if (d.claimedBy && d.claimedBy !== fb.uid) throw new Error('その席はすでに着席済みです');
+      tx.update(ref, { claimedBy: fb.uid });
+    });
+    claimSuccess(i);
+  } catch (e) { alert(e.message); }
+}
+
+function claimSuccess(i) {
+  if (onlineRoom.mySeat === i) return;
+  onlineRoom.mySeat = i;
+  document.getElementById('seat-pick-card').style.display = 'none';
+  document.getElementById('player-main').style.display = '';
+  subscribeMyWord();
+  onPlayerRoomChange();
+}
+
+function subscribeMyWord() {
+  const un = fb.fs.onSnapshot(fb.fs.doc(fb.db, 'rooms', onlineRoom.code, 'words', String(onlineRoom.mySeat)), s => {
+    if (!onlineRoom) return;
+    onlineRoom.myWord = s.exists() ? s.data().word : undefined;
+    renderPlayerWord();
+  }, () => {});
+  onlineRoom.unsubs.push(un);
+}
+
+function playerWordText() {
+  if (onlineRoom.room && onlineRoom.room.mode === 'spy' && onlineRoom.myWord === null) {
+    return '🕵️ あなたは他国の' + TERMS.spySpy + '！';
+  }
+  return onlineRoom.myWord;
+}
+
+function renderPlayerWord() {
+  const wEl = document.getElementById('p-word');
+  const roleEl = document.getElementById('p-role-area');
+  const labelEl = document.getElementById('p-word-label');
+  const mode = onlineRoom.room ? onlineRoom.room.mode : 'wolf';
+  const isSpy = mode === 'spy' && onlineRoom.myWord === null;
+  labelEl.textContent = mode === 'wolf'
+    ? 'あなたに通達された議題'
+    : (isSpy ? 'あなたの正体' : `本日の議題（${TERMS.spySpy}には秘密）`);
+  wEl.classList.toggle('spy-word', isSpy);
+  if (onlineRoom.wordShown && onlineRoom.myWord !== undefined) {
+    wEl.textContent = playerWordText();
+    wEl.style.display = '';
+    roleEl.innerHTML = mode === 'spy'
+      ? (isSpy
+          ? '<span class="role-badge role-spy">議題は知らされていません</span>'
+          : `<span class="role-badge role-citizen">あなたは正規の${TERMS.spyCitizen}</span>`)
+      : '';
+    document.getElementById('p-toggle-word').textContent = '🙈 隠す';
+  } else {
+    wEl.style.display = 'none';
+    roleEl.innerHTML = '';
+    document.getElementById('p-toggle-word').textContent = '📜 機密文書を開く';
+  }
+}
+
+function togglePlayerWord() {
+  onlineRoom.wordShown = !onlineRoom.wordShown;
+  renderPlayerWord();
+  if (onlineRoom.wordShown) {
+    fb.fs.updateDoc(fb.fs.doc(fb.db, 'rooms', onlineRoom.code, 'seats', String(onlineRoom.mySeat)), { viewed: true }).catch(() => {});
+  }
+}
+
+function togglePeek() {
+  const peek = document.getElementById('p-peek');
+  const show = peek.style.display === 'none';
+  peek.style.display = show ? '' : 'none';
+  peek.textContent = show ? (playerWordText() || '') : '';
+}
+
+function onPlayerRoomChange() {
+  if (!onlineRoom || onlineRoom.isHost || !onlineRoom.room) return;
+  const r = onlineRoom.room;
+  if (onlineRoom.lastRound !== r.round) {
+    onlineRoom.lastRound = r.round;
+    onlineRoom.wordShown = false;
+    onlineRoom.beeped = false;
+    renderPlayerWord();
+  }
+  if (onlineRoom.mySeat == null) { showScreen('screen-player'); return; }
+  if (r.phase === 'lobby') {
+    document.getElementById('p-status').textContent =
+      '💡 議題を確認したら、GMが閣議を開始するまでお待ちください。画面をのぞかれないように！';
+    showScreen('screen-player');
+  } else if (r.phase === 'discussion') {
+    document.getElementById('discussion-hint').innerHTML = r.mode === 'wolf'
+      ? '💡 ヒント：「その政策に賛成？」「予算はどれくらい必要？」など、議題を直接言わずに探り合おう。'
+      : `💡 ヒント：順番に閣僚を指名して質問しよう。${TERMS.spySpy}は知ったかぶりで乗り切れ！`;
+    document.getElementById('p-peek').style.display = 'none';
+    showScreen('screen-discussion');
+    syncPlayerTimer(r.timer || {});
+  } else if (r.phase === 'vote') {
+    clearInterval(timer.id); timer.id = null;
+    document.getElementById('vote-note').innerHTML = r.mode === 'wolf'
+      ? `${TERMS.wolfMinority}だと思う閣僚を全員で一斉に指差そう。`
+      : `${TERMS.spySpy}だと思う閣僚を全員で一斉に指差そう。<br>指名された${TERMS.spySpy}は、議題を1回だけ宣言して当てれば逆転勝ち！`;
+    document.getElementById('vote-card').style.display = '';
+    document.getElementById('result-body').style.display = 'none';
+    showScreen('screen-result');
+  } else if (r.phase === 'result') {
+    clearInterval(timer.id); timer.id = null;
+    showScreen('screen-result');
+    loadAndRenderResult();
+  }
+}
+
+function syncPlayerTimer(t) {
+  clearInterval(timer.id);
+  timer.total = t.duration || state.time;
+  const calc = () => {
+    if (!onlineRoom || !onlineRoom.room) { clearInterval(timer.id); timer.id = null; return; }
+    timer.remain = t.paused
+      ? Math.round((t.remainMs || 0) / 1000)
+      : Math.max(0, Math.round(((t.endsAt || 0) - Date.now()) / 1000));
+    timer.paused = !!t.paused;
+    updateTimerUI();
+    document.getElementById('timer-status').textContent =
+      t.paused ? '⏸ 一時停止中' : (timer.remain <= 0 ? '⏰ 時間切れ！追及へ！' : '🏛️ 閣議中！');
+    if (timer.remain > 0) onlineRoom.beeped = false;
+    if (timer.remain <= 0 && !t.paused) {
+      clearInterval(timer.id); timer.id = null;
+      if (!onlineRoom.beeped) { onlineRoom.beeped = true; beep(); }
+    }
+  };
+  calc();
+  timer.id = setInterval(calc, 500);
+}
+
+async function loadAndRenderResult() {
+  try {
+    const { collection, getDocs } = fb.fs;
+    const [seatsS, wordsS, rolesS] = await Promise.all([
+      getDocs(collection(fb.db, 'rooms', onlineRoom.code, 'seats')),
+      getDocs(collection(fb.db, 'rooms', onlineRoom.code, 'words')),
+      getDocs(collection(fb.db, 'rooms', onlineRoom.code, 'roles'))
+    ]);
+    const words = {}, roles = {};
+    wordsS.forEach(d => { words[d.id] = d.data().word; });
+    rolesS.forEach(d => { roles[d.id] = !!d.data().isWolf; });
+    const assignments = seatsS.docs.map(d => d.data()).sort((a, b) => a.i - b.i)
+      .map(s => ({ name: s.name, word: words[String(s.i)], isWolf: roles[String(s.i)] }));
+    document.getElementById('vote-card').style.display = 'none';
+    document.getElementById('result-body').style.display = '';
+    renderResultData(assignments, onlineRoom.room.mode);
+  } catch (e) {
+    document.getElementById('result-title').textContent = '結果の取得に失敗しました。ページを再読み込みしてください。';
+  }
+}
+
+function leaveToSetup() {
+  teardownOnline();
+  clearInterval(timer.id); timer.id = null;
+  showScreen('screen-setup');
 }
 
 /* ================= SCREEN ================= */
@@ -1137,7 +1665,12 @@ function showScreen(id) {
 loadState();
 renderPlayers();
 document.getElementById('time-select').value = String(state.time);
+document.getElementById('online-toggle').checked = !!state.online;
 setMode(state.mode);
+
+// ?join=1234 付きURL（QR経由など）で開いたら参加画面へ
+const joinParam = new URLSearchParams(location.search).get('join');
+if (joinParam && /^\d{4}$/.test(joinParam)) openJoin(joinParam);
 
 // 初回アクセス時（議題が空のとき）は、共有議題データを自動で読み込む
 // GitHub API（即時反映）を優先し、失敗時は同じ場所の ngp-odai.json を使う
