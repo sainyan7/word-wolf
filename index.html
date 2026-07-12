@@ -1,0 +1,1023 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NGP パーティゲーム — ワードウルフ &amp; スパイ</title>
+<style>
+  :root {
+    --bg1: #1a1c2e;
+    --bg2: #2b2050;
+    --card: #ffffff;
+    --card-text: #22243a;
+    --accent: #7c5cff;
+    --accent2: #ff5c8a;
+    --green: #2ec27e;
+    --amber: #ffb020;
+    --muted: #8a8ca8;
+    --radius: 18px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic UI", "Meiryo", sans-serif;
+    background: linear-gradient(160deg, var(--bg1) 0%, var(--bg2) 100%);
+    min-height: 100vh;
+    color: var(--card-text);
+    -webkit-font-smoothing: antialiased;
+  }
+  #app { max-width: 640px; margin: 0 auto; padding: 20px 16px 48px; }
+
+  header.app-header { text-align: center; color: #fff; padding: 14px 0 20px; }
+  header.app-header h1 { font-size: 24px; letter-spacing: .04em; }
+  header.app-header .sub { font-size: 12px; color: #bdb8e8; margin-top: 4px; letter-spacing: .12em; }
+
+  .screen { display: none; }
+  .screen.active { display: block; animation: fadein .25s ease; }
+  @keyframes fadein { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+  .card {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 16px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.25);
+  }
+  .card h2 {
+    font-size: 15px; color: var(--muted); letter-spacing: .08em;
+    margin-bottom: 14px;
+  }
+
+  /* ---- mode tabs ---- */
+  .mode-tabs { display: flex; gap: 10px; margin-bottom: 16px; }
+  .mode-tab {
+    flex: 1; padding: 16px 8px; border-radius: var(--radius); border: none; cursor: pointer;
+    background: rgba(255,255,255,.10); color: #cfcbe8; font-size: 15px; font-weight: bold;
+    font-family: inherit; transition: all .15s;
+  }
+  .mode-tab .mode-emoji { display: block; font-size: 26px; margin-bottom: 6px; }
+  .mode-tab.selected { background: #fff; color: var(--card-text); box-shadow: 0 8px 24px rgba(0,0,0,.3); }
+  .mode-tabs.small .mode-tab { padding: 10px 8px; font-size: 14px; }
+  .mode-tabs.small .mode-tab .mode-emoji { font-size: 18px; margin-bottom: 2px; display: inline; margin-right: 6px; }
+  .mode-desc { font-size: 12px; color: #bdb8e8; text-align: center; margin-bottom: 16px; min-height: 2.4em; line-height: 1.7; }
+
+  /* ---- form controls ---- */
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+  .row:last-child { margin-bottom: 0; }
+  .row label { font-size: 14px; font-weight: bold; }
+  .row .hint { display: block; font-size: 11px; color: var(--muted); font-weight: normal; margin-top: 2px; }
+
+  .stepper { display: flex; align-items: center; gap: 8px; }
+  .stepper button {
+    width: 40px; height: 40px; border-radius: 12px; border: none; cursor: pointer;
+    background: #f0eefc; color: var(--accent); font-size: 20px; font-weight: bold;
+  }
+  .stepper button:active { background: #e2ddfb; }
+  .stepper .value { min-width: 56px; text-align: center; font-size: 20px; font-weight: bold; }
+
+  select, input[type="text"] {
+    font: inherit; padding: 10px 12px; border-radius: 12px; border: 2px solid #e5e3f2;
+    background: #fafaff; width: 100%; color: var(--card-text);
+  }
+  select:focus, input[type="text"]:focus { outline: none; border-color: var(--accent); }
+
+  .player-list { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .player-list input { padding: 9px 10px; }
+  @media (max-width: 430px) { .player-list { grid-template-columns: 1fr; } }
+
+  /* ---- buttons ---- */
+  .btn {
+    display: block; width: 100%; padding: 16px; border: none; border-radius: var(--radius);
+    font-size: 17px; font-weight: bold; cursor: pointer; font-family: inherit;
+    transition: transform .08s, filter .15s;
+  }
+  .btn:active { transform: scale(.98); }
+  .btn-primary { background: linear-gradient(135deg, var(--accent), #a06bff); color: #fff; box-shadow: 0 8px 20px rgba(124,92,255,.45); }
+  .btn-pink { background: linear-gradient(135deg, var(--accent2), #ff8f6b); color: #fff; box-shadow: 0 8px 20px rgba(255,92,138,.4); }
+  .btn-green { background: linear-gradient(135deg, var(--green), #4fd8a0); color: #fff; box-shadow: 0 8px 20px rgba(46,194,126,.4); }
+  .btn-ghost { background: rgba(255,255,255,.12); color: #dcd8f5; }
+  .btn-sub { background: #f0eefc; color: var(--accent); }
+  .btn-small { padding: 10px 14px; font-size: 14px; }
+  .btn + .btn { margin-top: 10px; }
+  .btn-row { display: flex; gap: 10px; }
+  .btn-row .btn { flex: 1; margin-top: 0; }
+  .mt10 { margin-top: 10px; } .mt16 { margin-top: 16px; }
+
+  /* ---- themes manager ---- */
+  .genre-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+  .genre-head .g-name { font-size: 16px; font-weight: bold; flex: 1; }
+  .genre-head .g-count { font-size: 12px; color: var(--muted); font-weight: normal; margin-left: 6px; }
+  .icon-btn {
+    border: none; background: #f0eefc; color: var(--accent); cursor: pointer;
+    width: 34px; height: 34px; border-radius: 10px; font-size: 15px; flex-shrink: 0;
+  }
+  .icon-btn.danger { color: var(--accent2); }
+  .item-list { display: flex; flex-direction: column; gap: 6px; }
+  .theme-item {
+    display: flex; align-items: center; gap: 8px;
+    background: #f6f5fd; border-radius: 10px; padding: 8px 12px; font-size: 14px;
+  }
+  .theme-item .txt { flex: 1; word-break: break-word; }
+  .pair-inputs { display: flex; gap: 8px; }
+  .add-row { display: flex; gap: 8px; margin-top: 10px; }
+  .add-row .inputs { flex: 1; display: flex; gap: 8px; }
+  .edit-row { display: flex; flex-direction: column; gap: 8px; background: #f0eefc; border-radius: 10px; padding: 10px; }
+  .edit-row .inputs { display: flex; gap: 8px; }
+  .empty-note { font-size: 12px; color: var(--muted); margin-top: 10px; text-align: center; line-height: 1.8; }
+
+  details.help { color: #cfcbe8; font-size: 13px; margin-bottom: 16px; }
+  details.help summary { cursor: pointer; font-weight: bold; padding: 8px 0; }
+  details.help .help-body { background: rgba(255,255,255,.08); border-radius: 12px; padding: 14px 16px; line-height: 1.9; }
+  details.help b { color: #fff; }
+
+  /* ---- reveal ---- */
+  .turn-indicator { text-align: center; color: #bdb8e8; font-size: 13px; margin-bottom: 12px; letter-spacing: .1em; }
+  .pass-card { text-align: center; padding: 40px 20px; }
+  .pass-card .who { font-size: 28px; font-weight: bold; margin: 10px 0 6px; }
+  .pass-card .note { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
+  .pass-emoji { font-size: 48px; }
+
+  .word-card { text-align: center; padding: 36px 20px; }
+  .word-card .label { font-size: 13px; color: var(--muted); letter-spacing: .15em; margin-bottom: 14px; }
+  .word-card .word {
+    font-size: 34px; font-weight: bold; line-height: 1.4; margin-bottom: 8px; word-break: break-word;
+  }
+  .word-card .role-badge {
+    display: inline-block; margin-top: 8px; padding: 6px 16px; border-radius: 999px;
+    font-size: 13px; font-weight: bold;
+  }
+  .role-citizen { background: #e2f7ec; color: #1a8a5a; }
+  .role-spy { background: #ffe3ea; color: #d81b55; }
+  .word-card .spy-word { color: var(--accent2); }
+  .word-card .sub-note { font-size: 12px; color: var(--muted); margin-top: 16px; line-height: 1.8; }
+
+  /* ---- discussion / timer ---- */
+  .timer-card { text-align: center; padding: 32px 20px; }
+  .timer-display { font-size: 72px; font-weight: bold; font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+  .timer-display.warn { color: var(--accent2); animation: pulse 1s infinite; }
+  @keyframes pulse { 50% { opacity: .55; } }
+  .timer-bar-wrap { background: #eeecf8; border-radius: 999px; height: 10px; margin: 18px 0 22px; overflow: hidden; }
+  .timer-bar { background: linear-gradient(90deg, var(--accent), var(--accent2)); height: 100%; border-radius: 999px; transition: width 1s linear; }
+  .timer-status { font-size: 14px; color: var(--muted); margin-bottom: 4px; letter-spacing: .1em; }
+
+  /* ---- result ---- */
+  .result-word-row { display: flex; gap: 10px; margin-bottom: 14px; }
+  .result-word-box { flex: 1; border-radius: 14px; padding: 14px; text-align: center; }
+  .result-word-box .tag { font-size: 11px; font-weight: bold; letter-spacing: .1em; margin-bottom: 6px; }
+  .result-word-box .w { font-size: 20px; font-weight: bold; word-break: break-word; }
+  .box-citizen { background: #e2f7ec; } .box-citizen .tag { color: #1a8a5a; }
+  .result-players { display: flex; flex-direction: column; gap: 8px; }
+  .result-player {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    border-radius: 12px; padding: 12px 14px; font-size: 15px; background: #f6f5fd;
+  }
+  .result-player.is-wolf { background: #ffe3ea; }
+  .result-player .nm { font-weight: bold; }
+  .result-player .rhs { display: flex; align-items: center; gap: 10px; }
+  .result-player .w { font-weight: bold; color: #4a4c68; }
+  .result-player.is-wolf .w { color: #d81b55; }
+  .result-player .badge { font-size: 12px; padding: 4px 12px; border-radius: 999px; font-weight: bold; white-space: nowrap; }
+  .reveal-cover { text-align: center; padding: 40px 20px; }
+  .reveal-cover .big { font-size: 24px; font-weight: bold; margin-bottom: 8px; }
+  .reveal-cover .note { color: var(--muted); font-size: 13px; margin-bottom: 24px; line-height: 1.9; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="app-header">
+    <h1>🎉 NGP パーティゲーム</h1>
+    <div class="sub">WORD WOLF &amp; SPY</div>
+  </header>
+
+  <!-- ============ SETUP ============ -->
+  <section id="screen-setup" class="screen active">
+    <div class="mode-tabs">
+      <button class="mode-tab selected" id="tab-wolf" onclick="setMode('wolf')"><span class="mode-emoji">🐺</span>ワードウルフ</button>
+      <button class="mode-tab" id="tab-spy" onclick="setMode('spy')"><span class="mode-emoji">🕵️</span>スパイ</button>
+    </div>
+    <div class="mode-desc" id="mode-desc"></div>
+
+    <details class="help">
+      <summary>📖 あそびかた</summary>
+      <div class="help-body" id="help-body"></div>
+    </details>
+
+    <div class="card">
+      <h2>プレイヤー</h2>
+      <div class="row">
+        <label>人数</label>
+        <div class="stepper">
+          <button onclick="changePlayers(-1)">−</button>
+          <span class="value" id="player-count">5</span>
+          <button onclick="changePlayers(1)">＋</button>
+        </div>
+      </div>
+      <div class="row" id="wolf-count-row">
+        <label id="minority-label"></label>
+        <div class="stepper">
+          <button onclick="changeWolves(-1)">−</button>
+          <span class="value" id="wolf-count">1</span>
+          <button onclick="changeWolves(1)">＋</button>
+        </div>
+      </div>
+      <div class="row">
+        <label>名前<span class="hint">タップして変更できます</span></label>
+      </div>
+      <div class="player-list" id="player-list"></div>
+    </div>
+
+    <div class="card">
+      <h2>お題・時間</h2>
+      <div class="row">
+        <label>お題のジャンル</label>
+      </div>
+      <select id="category-select" class="mt10" onchange="saveSettings()"></select>
+      <button class="btn btn-sub btn-small mt10" onclick="openThemes()">⚙️ お題の設定（追加・編集・削除）</button>
+      <div class="row mt16">
+        <label>議論時間</label>
+      </div>
+      <select id="time-select" onchange="saveSettings()">
+        <option value="60">1分</option>
+        <option value="120">2分</option>
+        <option value="180">3分</option>
+        <option value="240">4分</option>
+        <option value="300" selected>5分</option>
+        <option value="420">7分</option>
+        <option value="600">10分</option>
+      </select>
+    </div>
+
+    <button class="btn btn-primary" onclick="startGame()">🎮 ゲームスタート</button>
+  </section>
+
+  <!-- ============ THEMES MANAGER ============ -->
+  <section id="screen-themes" class="screen">
+    <button class="btn btn-ghost btn-small" onclick="closeThemes()" style="margin-bottom:16px">← ゲーム設定に戻る</button>
+
+    <div class="mode-tabs small">
+      <button class="mode-tab" id="ttab-wolf" onclick="setThemesMode('wolf')"><span class="mode-emoji">🐺</span>ワードウルフのお題</button>
+      <button class="mode-tab" id="ttab-spy" onclick="setThemesMode('spy')"><span class="mode-emoji">🕵️</span>スパイのお題</button>
+    </div>
+    <div class="mode-desc" id="themes-desc"></div>
+
+    <div class="card">
+      <h2>➕ 新しいジャンルを作る</h2>
+      <div class="add-row">
+        <div class="inputs">
+          <input type="text" id="new-genre-name" placeholder="ジャンル名（例: NGPネタ、定番 など）" maxlength="20">
+        </div>
+        <button class="btn btn-sub btn-small" style="width:auto" onclick="addGenre()">追加</button>
+      </div>
+    </div>
+
+    <div id="genre-list"></div>
+
+    <div class="card">
+      <h2>💾 データの共有（別のパソコンと同期）</h2>
+      <div class="empty-note" style="margin:0 0 12px; text-align:left">
+        お題データはこのブラウザ内に保存されます。別のパソコンでも同じお題を使うには、
+        「書き出し」でファイルを保存（Dropboxのこのアプリのフォルダ推奨）→ もう一方のパソコンで「読み込み」してください。
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-sub btn-small" onclick="exportThemes()">⬇️ お題データを書き出し</button>
+        <button class="btn btn-sub btn-small" onclick="document.getElementById('import-file').click()">⬆️ お題データを読み込み</button>
+      </div>
+      <input type="file" id="import-file" accept=".json,application/json" style="display:none" onchange="importThemes(this)">
+    </div>
+
+    <button class="btn btn-ghost" onclick="closeThemes()">← ゲーム設定に戻る</button>
+  </section>
+
+  <!-- ============ REVEAL ============ -->
+  <section id="screen-reveal" class="screen">
+    <div class="turn-indicator" id="turn-indicator"></div>
+
+    <div class="card pass-card" id="pass-card">
+      <div class="pass-emoji">🤫</div>
+      <div class="who" id="pass-name"></div>
+      <div class="note">さんに PC（画面）を向けてください。<br>他の人は見ないでね！</div>
+      <button class="btn btn-primary" onclick="showWord()">👀 自分のお題を見る</button>
+    </div>
+
+    <div class="card word-card" id="word-card" style="display:none">
+      <div class="label" id="word-label">あなたのお題</div>
+      <div class="word" id="word-text"></div>
+      <div id="role-area"></div>
+      <div class="sub-note" id="word-note"></div>
+      <button class="btn btn-green mt16" onclick="nextReveal()" id="next-reveal-btn">✅ 確認した（次の人へ）</button>
+    </div>
+
+    <button class="btn btn-ghost" onclick="confirmQuit()">← 設定に戻る</button>
+  </section>
+
+  <!-- ============ DISCUSSION ============ -->
+  <section id="screen-discussion" class="screen">
+    <div class="card timer-card">
+      <div class="timer-status" id="timer-status">🗣️ 議論タイム！</div>
+      <div class="timer-display" id="timer-display">5:00</div>
+      <div class="timer-bar-wrap"><div class="timer-bar" id="timer-bar" style="width:100%"></div></div>
+      <div class="btn-row">
+        <button class="btn btn-sub" id="pause-btn" onclick="togglePause()">⏸ 一時停止</button>
+        <button class="btn btn-sub" onclick="extendTimer()">＋1分</button>
+      </div>
+      <button class="btn btn-pink mt10" onclick="goVote()">🗳️ 議論を終えて投票へ</button>
+    </div>
+
+    <div class="card" style="padding:14px 18px; font-size:13px; color:var(--muted); line-height:1.9" id="discussion-hint"></div>
+    <button class="btn btn-ghost" onclick="confirmQuit()">← 設定に戻る</button>
+  </section>
+
+  <!-- ============ VOTE / RESULT ============ -->
+  <section id="screen-result" class="screen">
+    <div class="card reveal-cover" id="vote-card">
+      <div class="big">🫵 せーの、で指をさせ！</div>
+      <div class="note" id="vote-note"></div>
+      <button class="btn btn-pink" onclick="showResult()">🎭 結果発表！</button>
+    </div>
+
+    <div id="result-body" style="display:none">
+      <div class="card">
+        <h2 id="result-title">結果発表</h2>
+        <div class="result-word-row" id="result-words" style="display:none"></div>
+        <div class="result-players" id="result-players"></div>
+      </div>
+      <div class="card" style="padding:14px 18px; font-size:13px; color:var(--muted); line-height:1.9" id="result-hint"></div>
+      <button class="btn btn-primary" onclick="playAgain()">🔁 同じ設定でもう一回</button>
+      <button class="btn btn-ghost" onclick="backToSetup()">⚙️ 設定に戻る</button>
+    </div>
+  </section>
+</div>
+
+<script>
+'use strict';
+
+/* =================================================================
+   用語設定 — ゲーム内の呼び方はここをまとめて変えられます
+   ================================================================= */
+const TERMS = {
+  wolfMajority: '多数派',   // ワードウルフ: 多いほうのお題を持つ人
+  wolfMinority: '少数派',   // ワードウルフ: 少ないほうのお題を持つ人（＝仲間はずれ）
+  spyCitizen:   '同胞',     // スパイ: お題を知っている人
+  spySpy:       'スパイ'    // スパイ: お題を知らない人
+};
+
+/* ================= STATE ================= */
+const LS_KEY = 'ngpww_v2';
+let state = {
+  mode: 'wolf',            // 'wolf' | 'spy'
+  playerCount: 5,
+  names: [],
+  wolfCount: 1,
+  category: 'random',
+  time: 300,
+  // ジャンル: { name, items } / items は wolf=[a,b]のペア配列, spy=文字列配列
+  wolfGenres: [],
+  spyGenres: []
+};
+let game = null;
+let timer = { remain: 0, total: 0, id: null, paused: false };
+let themesMode = 'wolf';
+let editing = null;        // { g: genreIndex, i: itemIndex } / i === -1 はジャンル名編集
+
+/* ================= PERSISTENCE ================= */
+function loadState() {
+  try {
+    const s = JSON.parse(localStorage.getItem(LS_KEY));
+    if (s && typeof s === 'object') Object.assign(state, s);
+    else migrateV1();
+  } catch (e) {}
+  if (!Array.isArray(state.names)) state.names = [];
+  if (!Array.isArray(state.wolfGenres)) state.wolfGenres = [];
+  if (!Array.isArray(state.spyGenres)) state.spyGenres = [];
+}
+function migrateV1() {
+  try {
+    const v1 = JSON.parse(localStorage.getItem('ngpww_v1'));
+    if (!v1) return;
+    if (Array.isArray(v1.names)) state.names = v1.names;
+    if (Array.isArray(v1.customPairs) && v1.customPairs.length)
+      state.wolfGenres.push({ name: 'オリジナル', items: v1.customPairs });
+    if (Array.isArray(v1.customLocations) && v1.customLocations.length)
+      state.spyGenres.push({ name: 'オリジナル', items: v1.customLocations });
+  } catch (e) {}
+}
+function persist() {
+  try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) {}
+}
+function saveSettings() {
+  state.category = document.getElementById('category-select').value;
+  state.time = parseInt(document.getElementById('time-select').value, 10);
+  persist();
+}
+
+/* ================= SETUP UI ================= */
+function setMode(mode) {
+  state.mode = mode;
+  document.getElementById('tab-wolf').classList.toggle('selected', mode === 'wolf');
+  document.getElementById('tab-spy').classList.toggle('selected', mode === 'spy');
+  document.getElementById('minority-label').innerHTML = mode === 'wolf'
+    ? `${TERMS.wolfMinority}の人数<span class="hint">違うお題を持つ人数</span>`
+    : `${TERMS.spySpy}の人数<span class="hint">お題を知らない人数</span>`;
+  document.getElementById('mode-desc').textContent = mode === 'wolf'
+    ? `ひとりだけ違うお題を持つ「${TERMS.wolfMinority}」を、会話の中から探し出せ！`
+    : `お題を知らない「${TERMS.spySpy}」を質問で見つけ出せ！${TERMS.spySpy}はお題を推理しろ！`;
+  document.getElementById('help-body').innerHTML = mode === 'wolf'
+    ? `<b>① 配役</b>：全員にお題が配られますが、${TERMS.wolfMinority}だけ違うお題です。自分が${TERMS.wolfMajority}か${TERMS.wolfMinority}かは分かりません。<br>` +
+      `<b>② 議論</b>：お題について話し、「話が噛み合わない人」を探します。お題を直接言うのはNG！<br>` +
+      `<b>③ 投票</b>：時間が来たら「せーの」で${TERMS.wolfMinority}だと思う人を指差し。最多票の人が指名されます。<br>` +
+      `<b>④ 勝敗</b>：${TERMS.wolfMinority}を当てたら${TERMS.wolfMajority}の勝ち。外したら${TERMS.wolfMinority}の勝ち。指名された${TERMS.wolfMinority}が${TERMS.wolfMajority}のお題を当てたら逆転勝ち！`
+    : `<b>① 配役</b>：${TERMS.spySpy}以外の全員（${TERMS.spyCitizen}）に同じお題が知らされます。${TERMS.spySpy}は自分が${TERMS.spySpy}だと分かりますが、お題は知りません。<br>` +
+      `<b>② 議論</b>：順番に質問し合います（例:「そこにはよく行く？」）。${TERMS.spySpy}は話を合わせてバレないように！<br>` +
+      `<b>③ 投票</b>：時間が来たら「せーの」で${TERMS.spySpy}だと思う人を指差し。<br>` +
+      `<b>④ 勝敗</b>：${TERMS.spySpy}を当てたら${TERMS.spyCitizen}の勝ち。外したら${TERMS.spySpy}の勝ち。指名された${TERMS.spySpy}がお題を当てたら逆転勝ち！`;
+  renderCategories();
+  persist();
+}
+
+function maxWolves() { return Math.max(1, Math.ceil(state.playerCount / 2) - 1); }
+
+function changePlayers(d) {
+  state.playerCount = Math.min(20, Math.max(3, state.playerCount + d));
+  state.wolfCount = Math.min(state.wolfCount, maxWolves());
+  renderPlayers();
+  persist();
+}
+function changeWolves(d) {
+  state.wolfCount = Math.min(maxWolves(), Math.max(1, state.wolfCount + d));
+  document.getElementById('wolf-count').textContent = state.wolfCount;
+  persist();
+}
+
+function renderPlayers() {
+  document.getElementById('player-count').textContent = state.playerCount;
+  document.getElementById('wolf-count').textContent = state.wolfCount;
+  const list = document.getElementById('player-list');
+  list.innerHTML = '';
+  for (let i = 0; i < state.playerCount; i++) {
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.maxLength = 12;
+    input.placeholder = 'プレイヤー' + (i + 1);
+    input.value = state.names[i] || '';
+    input.addEventListener('input', () => { state.names[i] = input.value; persist(); });
+    list.appendChild(input);
+  }
+}
+
+function playerName(i) {
+  return (state.names[i] || '').trim() || 'プレイヤー' + (i + 1);
+}
+
+function currentModeGenres() {
+  return state.mode === 'wolf' ? state.wolfGenres : state.spyGenres;
+}
+
+function renderCategories() {
+  const sel = document.getElementById('category-select');
+  const genres = currentModeGenres();
+  sel.innerHTML = '';
+  const optR = document.createElement('option');
+  optR.value = 'random';
+  const total = genres.reduce((n, g) => n + g.items.length, 0);
+  optR.textContent = `🎲 ランダム（全ジャンル・${total}個）`;
+  sel.appendChild(optR);
+  genres.forEach(g => {
+    const o = document.createElement('option');
+    o.value = g.name;
+    o.textContent = `${g.name}（${g.items.length}個）`;
+    sel.appendChild(o);
+  });
+  sel.value = [...sel.options].some(o => o.value === state.category) ? state.category : 'random';
+  state.category = sel.value;
+}
+
+/* ================= THEMES MANAGER ================= */
+function openThemes() {
+  themesMode = state.mode;
+  editing = null;
+  setThemesMode(themesMode);
+  showScreen('screen-themes');
+}
+function closeThemes() {
+  editing = null;
+  renderCategories();
+  showScreen('screen-setup');
+}
+function setThemesMode(mode) {
+  themesMode = mode;
+  editing = null;
+  document.getElementById('ttab-wolf').classList.toggle('selected', mode === 'wolf');
+  document.getElementById('ttab-spy').classList.toggle('selected', mode === 'spy');
+  document.getElementById('themes-desc').textContent = mode === 'wolf'
+    ? 'お題は2つで1ペア。どちらが多数派になるかは毎回ランダムなので、作った本人も参加できます。'
+    : 'お題は1つずつ登録します（場所・人物・イベントなど）。';
+  renderGenres();
+}
+function themesGenres() {
+  return themesMode === 'wolf' ? state.wolfGenres : state.spyGenres;
+}
+
+function addGenre() {
+  const input = document.getElementById('new-genre-name');
+  const name = input.value.trim();
+  if (!name) { alert('ジャンル名を入力してください'); return; }
+  if (themesGenres().some(g => g.name === name)) { alert('同じ名前のジャンルがあります'); return; }
+  themesGenres().push({ name, items: [] });
+  input.value = '';
+  persist();
+  renderGenres();
+}
+function deleteGenre(gi) {
+  const g = themesGenres()[gi];
+  if (!confirm(`ジャンル「${g.name}」とその中のお題${g.items.length}個を削除しますか？`)) return;
+  themesGenres().splice(gi, 1);
+  editing = null;
+  persist();
+  renderGenres();
+}
+function addItem(gi) {
+  const g = themesGenres()[gi];
+  if (themesMode === 'wolf') {
+    const a = document.getElementById(`add-a-${gi}`).value.trim();
+    const b = document.getElementById(`add-b-${gi}`).value.trim();
+    if (!a || !b) { alert('お題を2つとも入力してください'); return; }
+    g.items.push([a, b]);
+  } else {
+    const v = document.getElementById(`add-a-${gi}`).value.trim();
+    if (!v) { alert('お題を入力してください'); return; }
+    g.items.push(v);
+  }
+  persist();
+  renderGenres();
+  const el = document.getElementById(`add-a-${gi}`);
+  if (el) el.focus();
+}
+function deleteItem(gi, ii) {
+  themesGenres()[gi].items.splice(ii, 1);
+  editing = null;
+  persist();
+  renderGenres();
+}
+function startEdit(gi, ii) {
+  editing = { g: gi, i: ii };
+  renderGenres();
+}
+function cancelEdit() {
+  editing = null;
+  renderGenres();
+}
+function saveEdit(gi, ii) {
+  const g = themesGenres()[gi];
+  if (ii === -1) {
+    const name = document.getElementById('edit-genre-name').value.trim();
+    if (!name) { alert('ジャンル名を入力してください'); return; }
+    if (themesGenres().some((x, i) => i !== gi && x.name === name)) { alert('同じ名前のジャンルがあります'); return; }
+    if (state.category === g.name) state.category = name;
+    g.name = name;
+  } else if (themesMode === 'wolf') {
+    const a = document.getElementById('edit-a').value.trim();
+    const b = document.getElementById('edit-b').value.trim();
+    if (!a || !b) { alert('お題を2つとも入力してください'); return; }
+    g.items[ii] = [a, b];
+  } else {
+    const v = document.getElementById('edit-a').value.trim();
+    if (!v) { alert('お題を入力してください'); return; }
+    g.items[ii] = v;
+  }
+  editing = null;
+  persist();
+  renderGenres();
+}
+
+function renderGenres() {
+  const box = document.getElementById('genre-list');
+  box.innerHTML = '';
+  const genres = themesGenres();
+
+  if (!genres.length) {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = '<div class="empty-note">まだジャンルがありません。<br>上の欄からジャンルを作って、お題を追加してください。</div>';
+    box.appendChild(card);
+    return;
+  }
+
+  genres.forEach((g, gi) => {
+    const card = document.createElement('div');
+    card.className = 'card';
+
+    // --- genre header ---
+    const head = document.createElement('div');
+    head.className = 'genre-head';
+    if (editing && editing.g === gi && editing.i === -1) {
+      const wrap = document.createElement('div');
+      wrap.className = 'edit-row';
+      wrap.style.flex = '1';
+      wrap.innerHTML = `
+        <div class="inputs"><input type="text" id="edit-genre-name" maxlength="20"></div>
+        <div class="inputs">
+          <button class="btn btn-green btn-small" onclick="saveEdit(${gi},-1)">保存</button>
+          <button class="btn btn-sub btn-small" onclick="cancelEdit()">キャンセル</button>
+        </div>`;
+      head.appendChild(wrap);
+      card.appendChild(head);
+      box.appendChild(card);
+      const inp = wrap.querySelector('#edit-genre-name');
+      inp.value = g.name;
+      return renderGenreItems(card, g, gi);
+    }
+    const nm = document.createElement('div');
+    nm.className = 'g-name';
+    nm.textContent = '📁 ' + g.name;
+    const cnt = document.createElement('span');
+    cnt.className = 'g-count';
+    cnt.textContent = g.items.length + '個';
+    nm.appendChild(cnt);
+    const editBtn = document.createElement('button');
+    editBtn.className = 'icon-btn'; editBtn.textContent = '✏️'; editBtn.title = 'ジャンル名を変更';
+    editBtn.onclick = () => startEdit(gi, -1);
+    const delBtn = document.createElement('button');
+    delBtn.className = 'icon-btn danger'; delBtn.textContent = '🗑️'; delBtn.title = 'ジャンルを削除';
+    delBtn.onclick = () => deleteGenre(gi);
+    head.appendChild(nm); head.appendChild(editBtn); head.appendChild(delBtn);
+    card.appendChild(head);
+
+    renderGenreItems(card, g, gi);
+    box.appendChild(card);
+  });
+}
+
+function renderGenreItems(card, g, gi) {
+  const list = document.createElement('div');
+  list.className = 'item-list';
+
+  g.items.forEach((item, ii) => {
+    if (editing && editing.g === gi && editing.i === ii) {
+      const wrap = document.createElement('div');
+      wrap.className = 'edit-row';
+      wrap.innerHTML = themesMode === 'wolf'
+        ? `<div class="inputs"><input type="text" id="edit-a"><input type="text" id="edit-b"></div>
+           <div class="inputs">
+             <button class="btn btn-green btn-small" onclick="saveEdit(${gi},${ii})">保存</button>
+             <button class="btn btn-sub btn-small" onclick="cancelEdit()">キャンセル</button>
+           </div>`
+        : `<div class="inputs"><input type="text" id="edit-a"></div>
+           <div class="inputs">
+             <button class="btn btn-green btn-small" onclick="saveEdit(${gi},${ii})">保存</button>
+             <button class="btn btn-sub btn-small" onclick="cancelEdit()">キャンセル</button>
+           </div>`;
+      list.appendChild(wrap);
+      // set values after insertion (avoids HTML-escaping issues)
+      setTimeout(() => {
+        const a = document.getElementById('edit-a');
+        if (!a) return;
+        if (themesMode === 'wolf') {
+          a.value = item[0];
+          document.getElementById('edit-b').value = item[1];
+        } else {
+          a.value = item;
+        }
+      }, 0);
+      return;
+    }
+    const row = document.createElement('div');
+    row.className = 'theme-item';
+    const txt = document.createElement('span');
+    txt.className = 'txt';
+    txt.textContent = themesMode === 'wolf' ? `${item[0]} ／ ${item[1]}` : item;
+    const eBtn = document.createElement('button');
+    eBtn.className = 'icon-btn'; eBtn.textContent = '✏️'; eBtn.title = '編集';
+    eBtn.onclick = () => startEdit(gi, ii);
+    const dBtn = document.createElement('button');
+    dBtn.className = 'icon-btn danger'; dBtn.textContent = '✕'; dBtn.title = '削除';
+    dBtn.onclick = () => deleteItem(gi, ii);
+    row.appendChild(txt); row.appendChild(eBtn); row.appendChild(dBtn);
+    list.appendChild(row);
+  });
+  card.appendChild(list);
+
+  // --- add item row ---
+  const add = document.createElement('div');
+  add.className = 'add-row';
+  add.innerHTML = themesMode === 'wolf'
+    ? `<div class="inputs">
+         <input type="text" id="add-a-${gi}" placeholder="お題A（例: 定例会）">
+         <input type="text" id="add-b-${gi}" placeholder="お題B（例: 飲み会）">
+       </div>
+       <button class="btn btn-sub btn-small" style="width:auto" onclick="addItem(${gi})">＋</button>`
+    : `<div class="inputs">
+         <input type="text" id="add-a-${gi}" placeholder="お題（例: 合宿の宿）">
+       </div>
+       <button class="btn btn-sub btn-small" style="width:auto" onclick="addItem(${gi})">＋</button>`;
+  card.appendChild(add);
+}
+
+/* ---- export / import ---- */
+function exportThemes() {
+  const data = {
+    app: 'ngp-party-game',
+    version: 2,
+    exportedAt: new Date().toISOString(),
+    wolfGenres: state.wolfGenres,
+    spyGenres: state.spyGenres
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'ngp-odai.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function importThemes(input) {
+  const file = input.files && input.files[0];
+  input.value = '';
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(reader.result);
+      if (!Array.isArray(data.wolfGenres) || !Array.isArray(data.spyGenres)) throw new Error('bad');
+      if (!confirm('現在のお題データを読み込んだ内容で置き換えます。よろしいですか？')) return;
+      state.wolfGenres = data.wolfGenres;
+      state.spyGenres = data.spyGenres;
+      editing = null;
+      persist();
+      renderGenres();
+      alert('お題データを読み込みました！');
+    } catch (e) {
+      alert('ファイルを読み込めませんでした。「お題データを書き出し」で保存したファイルを選んでください。');
+    }
+  };
+  reader.readAsText(file);
+}
+
+/* ================= GAME LOGIC ================= */
+function shuffle(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+function poolItems() {
+  saveSettings();
+  const genres = currentModeGenres();
+  if (state.category === 'random') {
+    let all = [];
+    genres.forEach(g => all = all.concat(g.items));
+    return all;
+  }
+  const g = genres.find(x => x.name === state.category);
+  return g ? g.items.slice() : [];
+}
+
+function startGame() {
+  saveSettings();
+  const n = state.playerCount;
+  const pool = poolItems();
+  if (!pool.length) {
+    alert('お題がまだ登録されていません。\n「お題の設定」からジャンルとお題を追加してください。');
+    openThemes();
+    return;
+  }
+
+  const idx = shuffle([...Array(n).keys()]).slice(0, state.wolfCount);
+  const isWolf = i => idx.includes(i);
+
+  if (state.mode === 'wolf') {
+    let [a, b] = pick(pool);
+    if (Math.random() < 0.5) [a, b] = [b, a];   // どちらが多数派かは毎回ランダム
+    game = {
+      mode: 'wolf',
+      majorityWord: a, minorityWord: b,
+      assignments: [...Array(n).keys()].map(i => ({
+        name: playerName(i), isWolf: isWolf(i), word: isWolf(i) ? b : a
+      })),
+      revealIndex: 0
+    };
+  } else {
+    const loc = pick(pool);
+    game = {
+      mode: 'spy',
+      location: loc,
+      assignments: [...Array(n).keys()].map(i => ({
+        name: playerName(i), isWolf: isWolf(i), word: isWolf(i) ? null : loc
+      })),
+      revealIndex: 0
+    };
+  }
+  showScreen('screen-reveal');
+  renderPass();
+}
+
+/* ================= REVEAL ================= */
+function renderPass() {
+  const i = game.revealIndex;
+  document.getElementById('turn-indicator').textContent = 'お題の確認 ' + (i + 1) + ' / ' + game.assignments.length;
+  document.getElementById('pass-name').textContent = game.assignments[i].name;
+  document.getElementById('pass-card').style.display = '';
+  document.getElementById('word-card').style.display = 'none';
+}
+
+function showWord() {
+  const a = game.assignments[game.revealIndex];
+  const wordEl = document.getElementById('word-text');
+  const roleEl = document.getElementById('role-area');
+  const noteEl = document.getElementById('word-note');
+  wordEl.classList.remove('spy-word');
+
+  if (game.mode === 'wolf') {
+    document.getElementById('word-label').textContent = 'あなたのお題';
+    wordEl.textContent = a.word;
+    roleEl.innerHTML = '';
+    noteEl.textContent = `自分が${TERMS.wolfMajority}か${TERMS.wolfMinority}かは分かりません。お題をそのまま口に出さないよう注意！`;
+  } else {
+    if (a.isWolf) {
+      document.getElementById('word-label').textContent = 'あなたの役割';
+      wordEl.textContent = `🕵️ あなたは${TERMS.spySpy}！`;
+      wordEl.classList.add('spy-word');
+      roleEl.innerHTML = '<span class="role-badge role-spy">お題は知らされません</span>';
+      noteEl.textContent = 'みんなの会話からお題を推理して、バレずに話を合わせよう。';
+    } else {
+      document.getElementById('word-label').textContent = `お題（${TERMS.spySpy}には秘密）`;
+      wordEl.textContent = a.word;
+      roleEl.innerHTML = `<span class="role-badge role-citizen">あなたは${TERMS.spyCitizen}</span>`;
+      noteEl.textContent = `${TERMS.spySpy}に悟られないよう、お題ズバリの発言は避けつつ質問に答えよう。`;
+    }
+  }
+  const isLast = game.revealIndex === game.assignments.length - 1;
+  document.getElementById('next-reveal-btn').textContent = isLast ? '✅ 確認した（議論スタート！）' : '✅ 確認した（次の人へ）';
+  document.getElementById('pass-card').style.display = 'none';
+  document.getElementById('word-card').style.display = '';
+}
+
+function nextReveal() {
+  game.revealIndex++;
+  if (game.revealIndex >= game.assignments.length) {
+    startDiscussion();
+  } else {
+    renderPass();
+  }
+}
+
+/* ================= DISCUSSION / TIMER ================= */
+function startDiscussion() {
+  showScreen('screen-discussion');
+  document.getElementById('discussion-hint').innerHTML = game.mode === 'wolf'
+    ? '💡 ヒント：「それって好き？」「最後に体験したのいつ？」など、お題を直接言わずに探り合おう。'
+    : `💡 ヒント：順番に相手を指名して質問しよう。「よく行く？」「誰と行く？」など。${TERMS.spySpy}は自然に答えてバレを回避！`;
+  startTimer(state.time);
+}
+
+function startTimer(sec) {
+  clearInterval(timer.id);
+  timer.remain = sec; timer.total = sec; timer.paused = false;
+  document.getElementById('pause-btn').textContent = '⏸ 一時停止';
+  document.getElementById('timer-status').textContent = '🗣️ 議論タイム！';
+  updateTimerUI();
+  timer.id = setInterval(tick, 1000);
+}
+function tick() {
+  if (timer.paused) return;
+  timer.remain--;
+  updateTimerUI();
+  if (timer.remain <= 0) {
+    clearInterval(timer.id);
+    timer.id = null;
+    document.getElementById('timer-status').textContent = '⏰ 時間切れ！投票へ！';
+    beep();
+  }
+}
+function updateTimerUI() {
+  const r = Math.max(0, timer.remain);
+  const m = Math.floor(r / 60), s = r % 60;
+  const disp = document.getElementById('timer-display');
+  disp.textContent = m + ':' + String(s).padStart(2, '0');
+  disp.classList.toggle('warn', r > 0 && r <= 10);
+  document.getElementById('timer-bar').style.width = (timer.total ? (r / timer.total) * 100 : 0) + '%';
+}
+function togglePause() {
+  if (!timer.id) return;
+  timer.paused = !timer.paused;
+  document.getElementById('pause-btn').textContent = timer.paused ? '▶ 再開' : '⏸ 一時停止';
+  document.getElementById('timer-status').textContent = timer.paused ? '⏸ 一時停止中' : '🗣️ 議論タイム！';
+}
+function extendTimer() {
+  timer.remain += 60; timer.total += 60;
+  if (!timer.id) {
+    timer.paused = false;
+    document.getElementById('timer-status').textContent = '🗣️ 議論タイム！';
+    timer.id = setInterval(tick, 1000);
+  }
+  updateTimerUI();
+}
+
+function beep() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    [0, .35, .7].forEach((t, i) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.frequency.value = i === 2 ? 1320 : 880;
+      g.gain.setValueAtTime(.25, ctx.currentTime + t);
+      g.gain.exponentialRampToValueAtTime(.001, ctx.currentTime + t + .3);
+      o.start(ctx.currentTime + t); o.stop(ctx.currentTime + t + .3);
+    });
+  } catch (e) {}
+}
+
+/* ================= VOTE / RESULT ================= */
+function goVote() {
+  clearInterval(timer.id); timer.id = null;
+  showScreen('screen-result');
+  document.getElementById('vote-card').style.display = '';
+  document.getElementById('result-body').style.display = 'none';
+  document.getElementById('vote-note').innerHTML = game.mode === 'wolf'
+    ? `${TERMS.wolfMinority}（仲間はずれ）だと思う人を全員で一斉に指差そう。<br>指名する人が決まったら結果発表！`
+    : `${TERMS.spySpy}だと思う人を全員で一斉に指差そう。<br>指名された${TERMS.spySpy}は、お題を1回だけ宣言して当てれば逆転勝ち！`;
+}
+
+function showResult() {
+  document.getElementById('vote-card').style.display = 'none';
+  document.getElementById('result-body').style.display = '';
+
+  const words = document.getElementById('result-words');
+  const box = document.getElementById('result-players');
+  box.innerHTML = '';
+
+  if (game.mode === 'wolf') {
+    document.getElementById('result-title').textContent = '🎭 結果発表 — 全員のお題';
+    words.style.display = 'none';
+    words.innerHTML = '';
+    game.assignments.forEach(a => {
+      const div = document.createElement('div');
+      div.className = 'result-player' + (a.isWolf ? ' is-wolf' : '');
+      const nm = document.createElement('span');
+      nm.className = 'nm';
+      nm.textContent = a.name;
+      const rhs = document.createElement('span');
+      rhs.className = 'rhs';
+      const w = document.createElement('span');
+      w.className = 'w';
+      w.textContent = a.word;
+      const badge = document.createElement('span');
+      badge.className = 'badge ' + (a.isWolf ? 'role-spy' : 'role-citizen');
+      badge.textContent = a.isWolf ? TERMS.wolfMinority : TERMS.wolfMajority;
+      rhs.appendChild(w); rhs.appendChild(badge);
+      div.appendChild(nm); div.appendChild(rhs);
+      box.appendChild(div);
+    });
+    document.getElementById('result-hint').textContent =
+      `💡 ${TERMS.wolfMinority}を当てられたら${TERMS.wolfMajority}の勝ち！外れたら${TERMS.wolfMinority}の勝ち。指名された${TERMS.wolfMinority}が${TERMS.wolfMajority}のお題を当てたら逆転勝ち！`;
+  } else {
+    document.getElementById('result-title').textContent = '🕵️ 結果発表';
+    words.style.display = '';
+    words.innerHTML =
+      '<div class="result-word-box box-citizen"><div class="tag">お題</div><div class="w"></div></div>';
+    words.children[0].querySelector('.w').textContent = game.location;
+    game.assignments.forEach(a => {
+      const div = document.createElement('div');
+      div.className = 'result-player' + (a.isWolf ? ' is-wolf' : '');
+      const nm = document.createElement('span');
+      nm.className = 'nm';
+      nm.textContent = a.name;
+      const badge = document.createElement('span');
+      badge.className = 'badge ' + (a.isWolf ? 'role-spy' : 'role-citizen');
+      badge.textContent = a.isWolf ? `🕵️ ${TERMS.spySpy}` : TERMS.spyCitizen;
+      div.appendChild(nm); div.appendChild(badge);
+      box.appendChild(div);
+    });
+    document.getElementById('result-hint').textContent =
+      `💡 ${TERMS.spySpy}を当てられたら${TERMS.spyCitizen}の勝ち！外れたら${TERMS.spySpy}の勝ち。指名された${TERMS.spySpy}がお題を当てたら逆転勝ち！`;
+  }
+}
+
+function playAgain() { startGame(); }
+
+function backToSetup() {
+  clearInterval(timer.id); timer.id = null;
+  game = null;
+  showScreen('screen-setup');
+}
+function confirmQuit() {
+  if (confirm('ゲームを中断して設定に戻りますか？')) backToSetup();
+}
+
+/* ================= SCREEN ================= */
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  window.scrollTo(0, 0);
+}
+
+/* ================= INIT ================= */
+loadState();
+renderPlayers();
+document.getElementById('time-select').value = String(state.time);
+setMode(state.mode);
+</script>
+</body>
+</html>
