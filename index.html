@@ -141,6 +141,10 @@
   .vote-row { cursor: pointer; user-select: none; }
   .vote-row.selected { outline: 3px solid var(--accent); background: #f0eefc; }
   .vote-row.novote { cursor: default; opacity: .45; }
+  .accuse-label { font-size: 14px; color: var(--muted); font-weight: bold; letter-spacing: .06em; margin-bottom: 10px; }
+  .accuse-name { font-size: clamp(26px, 9vw, 40px); font-weight: bold; line-height: 1.25; word-break: break-word; color: var(--accent); margin-bottom: 14px; }
+  .genre-check { cursor: pointer; }
+  .genre-check input { width: 20px; height: 20px; }
 
   /* ---- reveal ---- */
   .turn-indicator { text-align: center; color: #bdb8e8; font-size: 13px; margin-bottom: 12px; letter-spacing: .1em; }
@@ -250,9 +254,9 @@
     <div class="card">
       <h2>議題・時間</h2>
       <div class="row">
-        <label>議題のジャンル</label>
+        <label>議題のジャンル<span class="hint">複数選べます（チェックなし＝すべてから出題）</span></label>
       </div>
-      <select id="category-select" class="mt10" onchange="saveSettings()"></select>
+      <div id="genre-select-list" class="item-list mt10"></div>
       <button class="btn btn-sub btn-small mt10" onclick="openThemes()">⚙️ 議題の設定（追加・編集・削除）</button>
       <div class="row mt16">
         <label>閣議時間</label>
@@ -291,6 +295,11 @@
       <img id="lobby-qr" alt="参加用QRコード" style="margin:12px auto 0; display:block; border-radius:8px; width:160px; height:160px">
     </div>
 
+    <details class="help">
+      <summary>📖 あそびかた（初回はここを見ながら説明できます）</summary>
+      <div class="help-body help-body-dyn"></div>
+    </details>
+
     <div class="card">
       <h2>着席状況</h2>
       <div class="result-players" id="lobby-seats"></div>
@@ -307,6 +316,7 @@
       <h2>📱 閣議に参加</h2>
       <div class="row"><label>部屋コード（4桁）<span class="hint">GMの画面に表示されています</span></label></div>
       <input type="text" id="join-code" inputmode="numeric" maxlength="4" placeholder="例: 1234"
+             autocomplete="off" data-1p-ignore data-lpignore="true"
              style="font-size:24px; text-align:center; letter-spacing:.3em">
       <button class="btn btn-primary mt10" onclick="joinRoom()">入室する</button>
     </div>
@@ -355,7 +365,7 @@
       <h2>➕ 新しいジャンルを作る</h2>
       <div class="add-row">
         <div class="inputs">
-          <input type="text" id="new-genre-name" placeholder="ジャンル名（例: NGPネタ、定番 など）" maxlength="20">
+          <input type="text" id="new-genre-name" placeholder="ジャンル名（例: NGPネタ、定番 など）" maxlength="20" autocomplete="off" data-1p-ignore data-lpignore="true">
         </div>
         <button class="btn btn-sub btn-small" style="width:auto" onclick="addGenre()">追加</button>
       </div>
@@ -467,7 +477,8 @@
 
     <!-- 指名者の回答 -->
     <div class="card reveal-cover" id="answer-card" style="display:none">
-      <div class="big" id="answer-title"></div>
+      <div class="accuse-label" id="answer-label"></div>
+      <div class="accuse-name" id="answer-name"></div>
       <div class="note" id="answer-note"></div>
       <div id="answer-self" style="display:none; margin-bottom:18px">
         <button class="btn btn-sub btn-small" onclick="toggleAnswerSelf()">📜 自分の議題を確認する／隠す</button>
@@ -525,11 +536,16 @@ let state = {
   playerCount: 5,
   names: [],
   wolfCount: 1,
-  category: 'random',
   time: 300,
   // ジャンル: { name, items } / items は wolf=[a,b]のペア配列, spy=文字列配列
   wolfGenres: [],
   spyGenres: [],
+  // 出題ジャンルの選択（ジャンル名の配列。空配列＝すべてから出題）
+  selWolf: [],
+  selSpy: [],
+  // 直近に出した議題（連続で同じ議題が出にくくするための履歴）
+  recentWolf: [],
+  recentSpy: [],
   ghToken: '',
   ghKnownSha: '',
   online: false
@@ -566,7 +582,6 @@ function persist() {
   try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) {}
 }
 function saveSettings() {
-  state.category = document.getElementById('category-select').value;
   state.time = parseInt(document.getElementById('time-select').value, 10);
   persist();
 }
@@ -626,6 +641,9 @@ function renderPlayers() {
     input.type = 'text';
     input.maxLength = 12;
     input.placeholder = '閣僚' + (i + 1);
+    input.autocomplete = 'off';
+    input.setAttribute('data-1p-ignore', '');
+    input.setAttribute('data-lpignore', 'true');
     input.value = state.names[i] || '';
     input.addEventListener('input', () => { state.names[i] = input.value; persist(); });
     list.appendChild(input);
@@ -640,23 +658,55 @@ function currentModeGenres() {
   return state.mode === 'wolf' ? state.wolfGenres : state.spyGenres;
 }
 
-function renderCategories() {
-  const sel = document.getElementById('category-select');
+function selKey() { return state.mode === 'wolf' ? 'selWolf' : 'selSpy'; }
+function currentSel() {
   const genres = currentModeGenres();
-  sel.innerHTML = '';
-  const optR = document.createElement('option');
-  optR.value = 'random';
+  // 削除済みジャンルを除外して返す
+  return (state[selKey()] || []).filter(n => genres.some(g => g.name === n));
+}
+
+function renderCategories() {
+  const box = document.getElementById('genre-select-list');
+  if (!box) return;
+  const genres = currentModeGenres();
+  const sel = currentSel();
+  state[selKey()] = sel;
+  const allSelected = sel.length === 0;
+  box.innerHTML = '';
+
+  const mkRow = (labelText, checked, onToggle, bold) => {
+    const row = document.createElement('label');
+    row.className = 'theme-item genre-check';
+    const txt = document.createElement('span');
+    txt.className = 'txt';
+    txt.textContent = labelText;
+    if (bold) txt.style.fontWeight = 'bold';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = checked;
+    cb.onchange = () => onToggle(cb.checked);
+    row.appendChild(txt); row.appendChild(cb);
+    box.appendChild(row);
+  };
+
   const total = genres.reduce((n, g) => n + g.items.length, 0);
-  optR.textContent = `🎲 ランダム（全ジャンル・${total}個）`;
-  sel.appendChild(optR);
+  mkRow(`🎲 すべてのジャンル（${total}個）`, allSelected, () => {
+    state[selKey()] = [];
+    persist();
+    renderCategories();
+  }, true);
+
   genres.forEach(g => {
-    const o = document.createElement('option');
-    o.value = g.name;
-    o.textContent = `${g.name}（${g.items.length}個）`;
-    sel.appendChild(o);
+    mkRow(`${g.name}（${g.items.length}個）`, !allSelected && sel.includes(g.name), checked => {
+      let s = currentSel();
+      if (checked) { if (!s.includes(g.name)) s.push(g.name); }
+      else s = s.filter(x => x !== g.name);
+      if (s.length >= genres.length) s = [];  // 全部チェック＝すべて扱い
+      state[selKey()] = s;
+      persist();
+      renderCategories();
+    });
   });
-  sel.value = [...sel.options].some(o => o.value === state.category) ? state.category : 'random';
-  state.category = sel.value;
 }
 
 /* ================= THEMES MANAGER ================= */
@@ -700,7 +750,18 @@ function addGenre() {
 function deleteGenre(gi) {
   const g = themesGenres()[gi];
   if (!confirm(`ジャンル「${g.name}」とその中の議題${g.items.length}個を削除しますか？`)) return;
+  const key = themesMode === 'wolf' ? 'selWolf' : 'selSpy';
+  state[key] = (state[key] || []).filter(n => n !== g.name);
   themesGenres().splice(gi, 1);
+  editing = null;
+  persist();
+  renderGenres();
+}
+function moveGenre(gi, d) {
+  const arr = themesGenres();
+  const j = gi + d;
+  if (j < 0 || j >= arr.length) return;
+  [arr[gi], arr[j]] = [arr[j], arr[gi]];
   editing = null;
   persist();
   renderGenres();
@@ -742,7 +803,8 @@ function saveEdit(gi, ii) {
     const name = document.getElementById('edit-genre-name').value.trim();
     if (!name) { alert('ジャンル名を入力してください'); return; }
     if (themesGenres().some((x, i) => i !== gi && x.name === name)) { alert('同じ名前のジャンルがあります'); return; }
-    if (state.category === g.name) state.category = name;
+    const key = themesMode === 'wolf' ? 'selWolf' : 'selSpy';
+    state[key] = (state[key] || []).map(n => n === g.name ? name : n);
     g.name = name;
   } else if (themesMode === 'wolf') {
     const a = document.getElementById('edit-a').value.trim();
@@ -803,13 +865,23 @@ function renderGenres() {
     cnt.className = 'g-count';
     cnt.textContent = g.items.length + '個';
     nm.appendChild(cnt);
+    const upBtn = document.createElement('button');
+    upBtn.className = 'icon-btn'; upBtn.textContent = '↑'; upBtn.title = '上へ移動';
+    upBtn.disabled = gi === 0;
+    upBtn.style.opacity = gi === 0 ? .35 : 1;
+    upBtn.onclick = () => moveGenre(gi, -1);
+    const downBtn = document.createElement('button');
+    downBtn.className = 'icon-btn'; downBtn.textContent = '↓'; downBtn.title = '下へ移動';
+    downBtn.disabled = gi === genres.length - 1;
+    downBtn.style.opacity = gi === genres.length - 1 ? .35 : 1;
+    downBtn.onclick = () => moveGenre(gi, 1);
     const editBtn = document.createElement('button');
     editBtn.className = 'icon-btn'; editBtn.textContent = '✏️'; editBtn.title = 'ジャンル名を変更';
     editBtn.onclick = () => startEdit(gi, -1);
     const delBtn = document.createElement('button');
     delBtn.className = 'icon-btn danger'; delBtn.textContent = '🗑️'; delBtn.title = 'ジャンルを削除';
     delBtn.onclick = () => deleteGenre(gi);
-    head.appendChild(nm); head.appendChild(editBtn); head.appendChild(delBtn);
+    head.appendChild(nm); head.appendChild(upBtn); head.appendChild(downBtn); head.appendChild(editBtn); head.appendChild(delBtn);
     card.appendChild(head);
 
     renderGenreItems(card, g, gi);
@@ -826,12 +898,12 @@ function renderGenreItems(card, g, gi) {
       const wrap = document.createElement('div');
       wrap.className = 'edit-row';
       wrap.innerHTML = themesMode === 'wolf'
-        ? `<div class="inputs"><input type="text" id="edit-a"><input type="text" id="edit-b"></div>
+        ? `<div class="inputs"><input type="text" id="edit-a" autocomplete="off" data-1p-ignore data-lpignore="true"><input type="text" id="edit-b" autocomplete="off" data-1p-ignore data-lpignore="true"></div>
            <div class="inputs">
              <button class="btn btn-green btn-small" onclick="saveEdit(${gi},${ii})">保存</button>
              <button class="btn btn-sub btn-small" onclick="cancelEdit()">キャンセル</button>
            </div>`
-        : `<div class="inputs"><input type="text" id="edit-a"></div>
+        : `<div class="inputs"><input type="text" id="edit-a" autocomplete="off" data-1p-ignore data-lpignore="true"></div>
            <div class="inputs">
              <button class="btn btn-green btn-small" onclick="saveEdit(${gi},${ii})">保存</button>
              <button class="btn btn-sub btn-small" onclick="cancelEdit()">キャンセル</button>
@@ -871,12 +943,12 @@ function renderGenreItems(card, g, gi) {
   add.className = 'add-row';
   add.innerHTML = themesMode === 'wolf'
     ? `<div class="inputs">
-         <input type="text" id="add-a-${gi}" placeholder="議題A（例: 増税）">
-         <input type="text" id="add-b-${gi}" placeholder="議題B（例: 減税）">
+         <input type="text" id="add-a-${gi}" placeholder="議題A（例: 増税）" autocomplete="off" data-1p-ignore data-lpignore="true">
+         <input type="text" id="add-b-${gi}" placeholder="議題B（例: 減税）" autocomplete="off" data-1p-ignore data-lpignore="true">
        </div>
        <button class="btn btn-sub btn-small" style="width:auto" onclick="addItem(${gi})">＋</button>`
     : `<div class="inputs">
-         <input type="text" id="add-a-${gi}" placeholder="議題（例: 軍事パレード）">
+         <input type="text" id="add-a-${gi}" placeholder="議題（例: 軍事パレード）" autocomplete="off" data-1p-ignore data-lpignore="true">
        </div>
        <button class="btn btn-sub btn-small" style="width:auto" onclick="addItem(${gi})">＋</button>`;
   card.appendChild(add);
@@ -1023,13 +1095,26 @@ function esc(s) {
 function poolItems() {
   saveSettings();
   const genres = currentModeGenres();
-  if (state.category === 'random') {
-    let all = [];
-    genres.forEach(g => all = all.concat(g.items));
-    return all;
-  }
-  const g = genres.find(x => x.name === state.category);
-  return g ? g.items.slice() : [];
+  const sel = currentSel();
+  const use = sel.length ? genres.filter(g => sel.includes(g.name)) : genres;
+  let all = [];
+  use.forEach(g => all = all.concat(g.items));
+  return all;
+}
+
+/* 直近に出た議題を避けて選ぶ（プールを使い切ったら履歴をリセット） */
+function pickFresh(pool, recentKey) {
+  const keyOf = it => Array.isArray(it) ? it[0] + '|' + it[1] : String(it);
+  let hist = Array.isArray(state[recentKey]) ? state[recentKey] : [];
+  let candidates = pool.filter(it => !hist.includes(keyOf(it)));
+  if (!candidates.length) { hist = []; candidates = pool; }
+  const chosen = pick(candidates);
+  hist.push(keyOf(chosen));
+  const maxH = Math.max(0, Math.min(pool.length - 1, 30));
+  while (hist.length > maxH) hist.shift();
+  state[recentKey] = hist;
+  persist();
+  return chosen;
 }
 
 function buildGame() {
@@ -1045,7 +1130,7 @@ function buildGame() {
   const isWolf = i => idx.includes(i);
 
   if (state.mode === 'wolf') {
-    let [a, b] = pick(pool);
+    let [a, b] = pickFresh(pool, 'recentWolf');
     if (Math.random() < 0.5) [a, b] = [b, a];   // どちらが多数派かは毎回ランダム
     game = {
       mode: 'wolf',
@@ -1055,7 +1140,7 @@ function buildGame() {
       }))
     };
   } else {
-    const loc = pick(pool);
+    const loc = pickFresh(pool, 'recentSpy');
     game = {
       mode: 'spy',
       location: loc,
@@ -1336,6 +1421,15 @@ function renderVoteList() {
 
 function hostAdjustVote(i, d) {
   game.gmVotes = game.gmVotes || {};
+  if (d > 0) {
+    // 上限チェック: スマホ投票分＋GM入力分が出席人数を超えないように
+    const phoneVotes = (onlineRoom.seats || []).filter(s => s.vote != null).length;
+    const gmTotal = Object.values(game.gmVotes).reduce((a, b) => a + b, 0);
+    if (phoneVotes + gmTotal >= game.assignments.length) {
+      alert(`これ以上票を入れられません。\n投票数が出席人数（${game.assignments.length}人）に達しています。\n（スマホからの投票 ${phoneVotes}票 ＋ GM入力 ${gmTotal}票）`);
+      return;
+    }
+  }
   const v = Math.max(0, (game.gmVotes[i] || 0) + d);
   if (v === 0) delete game.gmVotes[i]; else game.gmVotes[i] = v;
   renderVoteList();
@@ -1393,9 +1487,10 @@ function hostConfirmAccused() {
 function showAnswerCard(name, mode) {
   showScreen('screen-result');
   renderPhaseCards('answer');
-  document.getElementById('answer-title').textContent = mode === 'spy'
-    ? `🕵️ ${TERMS.spySpy}の嫌疑をかけられたのは ${name}！`
-    : `🫵 造反の嫌疑をかけられたのは ${name}！`;
+  document.getElementById('answer-label').textContent = mode === 'spy'
+    ? `🕵️ ${TERMS.spySpy}の嫌疑をかけられたのは…`
+    : '🫵 造反の嫌疑をかけられたのは…';
+  document.getElementById('answer-name').textContent = name;
   document.getElementById('answer-note').innerHTML =
     'まずは<b>自分に通達された議題</b>を、声に出して答えてください。';
   // 言い間違い防止: 指名された本人のスマホにだけ、自分の議題の確認ボタンを表示
@@ -1434,23 +1529,27 @@ function showJudgeCard(isWolf, name, mode) {
   renderPhaseCards('judge');
   const t = document.getElementById('judge-title');
   const n = document.getElementById('judge-note');
+  // 名前を大きく1行、判定を次の行に分けて表示（PC/スマホ両対応）
+  const verdict = (emoji, roleHtml, tail) =>
+    `<div class="accuse-name" style="color:var(--card-text); margin-bottom:8px">${esc(name)}</div>` +
+    `<div>${emoji} ${roleHtml} ${tail}</div>`;
   if (mode === 'wolf') {
     if (isWolf) {
-      t.innerHTML = `🐺 ${esc(name)} は ${roleChip(TERMS.wolfMinority, true)} だった！`;
+      t.innerHTML = verdict('🐺', roleChip(TERMS.wolfMinority, true), 'だった！');
       n.innerHTML = `お見事！ただし${TERMS.wolfMinority}には逆転のチャンスがあります。<br>` +
         `<b>${TERMS.wolfMajority}の議題</b>をズバリ当てられたら逆転勝ち — 声に出して宣言してください！`;
     } else {
-      t.innerHTML = `⚖️ ${esc(name)} は ${roleChip(TERMS.wolfMajority, false)} だった…！`;
+      t.innerHTML = verdict('⚖️', roleChip(TERMS.wolfMajority, false), 'だった…！');
       n.innerHTML = `指名は失敗、${TERMS.wolfMinority}の勝利！<br>` +
         `${TERMS.wolfMinority}は名乗り出て、<b>自分に通達された議題</b>を発表してください。`;
     }
   } else {
     if (isWolf) {
-      t.innerHTML = `🕵️ ${esc(name)} は ${roleChip(TERMS.spySpy, true)} だった！`;
+      t.innerHTML = verdict('🕵️', roleChip(TERMS.spySpy, true), 'だった！');
       n.innerHTML = `お見事！ただし${TERMS.spySpy}には逆転のチャンスがあります。<br>` +
         `<b>本日の議題</b>をズバリ当てられたら逆転勝ち — 宣言してください！`;
     } else {
-      t.innerHTML = `⚖️ ${esc(name)} は正規の ${roleChip(TERMS.spyCitizen, false)} だった…！`;
+      t.innerHTML = verdict('⚖️', '正規の ' + roleChip(TERMS.spyCitizen, false), 'だった…！');
       n.innerHTML = `指名は失敗、${TERMS.spySpy}の勝利！<br>${TERMS.spySpy}は名乗り出てください。`;
     }
   }
