@@ -1409,15 +1409,16 @@ async function hostNextRound() {
 
 async function closeRoomDocs(code) {
   try {
-    const { doc, writeBatch } = fb.fs;
+    const { doc, writeBatch, deleteDoc } = fb.fs;
+    // 部屋本体より先にサブコレクションを消す（席の削除権限チェックが部屋を参照するため）
     const b = writeBatch(fb.db);
     for (let i = 0; i < MAX_SEATS; i++) {
       b.delete(doc(fb.db, 'rooms', code, 'seats', String(i)));
       b.delete(doc(fb.db, 'rooms', code, 'words', String(i)));
       b.delete(doc(fb.db, 'rooms', code, 'roles', String(i)));
     }
-    b.delete(doc(fb.db, 'rooms', code));
     await b.commit();
+    await deleteDoc(doc(fb.db, 'rooms', code));
   } catch (e) {}
 }
 

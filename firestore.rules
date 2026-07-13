@@ -7,8 +7,10 @@ service cloud.firestore {
       function roomData() {
         return get(/databases/$(database)/documents/rooms/$(code)).data;
       }
+      // getAfter: 部屋と座席・議題を1バッチで作成するため、書き込み後の状態でホスト判定する
+      // （既存の部屋の hostUid は update ルールで書き換え不能なので偽装はできない）
       function isHost() {
-        return roomData().hostUid == request.auth.uid;
+        return getAfter(/databases/$(database)/documents/rooms/$(code)).data.hostUid == request.auth.uid;
       }
       function seatClaimedByMe(seat) {
         return get(/databases/$(database)/documents/rooms/$(code)/seats/$(seat)).data.claimedBy == request.auth.uid;
