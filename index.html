@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>NGP 閣議 — 造反者とスパイを探せ</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏛️</text></svg>">
 <style>
   :root {
     --bg1: #1a1c2e;
@@ -198,6 +199,9 @@
   <header class="app-header">
     <h1>🏛️ NGP 閣議</h1>
     <div class="sub">NGP CABINET MEETING</div>
+    <div id="mode-indicator" style="display:none; margin-top:8px">
+      <span style="display:inline-block; background:rgba(255,255,255,.15); color:#fff; font-size:13px; font-weight:bold; padding:6px 16px; border-radius:999px"></span>
+    </div>
   </header>
 
   <!-- ============ SETUP ============ -->
@@ -457,13 +461,18 @@
       <div class="big">🗳️ 投票タイム！</div>
       <div class="note" id="vote-note"></div>
       <div class="result-players" id="vote-list" style="text-align:left; margin-bottom:18px"></div>
-      <button class="btn btn-pink host-only" id="accuse-btn" onclick="hostConfirmAccused()">🫵 この閣僚を指名する</button>
+      <button class="btn btn-pink host-only" id="accuse-btn" onclick="hostConfirmAccused()" style="display:none">🫵 この閣僚を指名する</button>
+      <button class="btn btn-pink host-only" id="close-vote-btn" onclick="hostCloseVoting()" style="display:none">🔒 投票を締め切る</button>
     </div>
 
     <!-- 指名者の回答 -->
     <div class="card reveal-cover" id="answer-card" style="display:none">
       <div class="big" id="answer-title"></div>
       <div class="note" id="answer-note"></div>
+      <div id="answer-self" style="display:none; margin-bottom:18px">
+        <button class="btn btn-sub btn-small" onclick="toggleAnswerSelf()">📜 自分の議題を確認する／隠す</button>
+        <div id="answer-self-word" style="display:none; font-size:22px; font-weight:bold; margin-top:10px; word-break:break-word"></div>
+      </div>
       <button class="btn btn-pink host-only" onclick="hostShowJudge()">🎭 正体を表示する</button>
       <div class="player-only" style="font-size:13px; color:var(--muted)">🕰️ GMの操作を待っています…</div>
     </div>
@@ -526,7 +535,8 @@ let state = {
   online: false
 };
 let game = null;
-let timer = { remain: 0, total: 0, id: null, paused: false };
+// タイマーは終了時刻(endsAt)基準で全端末が同じ計算をする（GMとスマホの完全同期）
+let timer = { remain: 0, total: 0, id: null, paused: false, endsAt: null, remainMs: 0, done: false };
 let themesMode = 'wolf';
 let editing = null;        // { g: genreIndex, i: itemIndex } / i === -1 はジャンル名編集
 
@@ -581,11 +591,11 @@ function helpHTML(mode) {
   return mode === 'wolf'
     ? `<b>① 通達</b>：全閣僚に「議題」が通達されますが、${TERMS.wolfMinority}だけ違う議題です。自分が${TERMS.wolfMajority}か${TERMS.wolfMinority}かは分かりません。<br>` +
       `<b>② 閣議</b>：議題について話し合い、「話が噛み合わない閣僚」を探します。議題を直接言うのはNG！<br>` +
-      `<b>③ 投票</b>：時間が来たら、${TERMS.wolfMinority}だと思う閣僚に投票（スマホ）または「せーの」で指差し。最多票の閣僚が指名されます。<br>` +
+      `<b>③ 投票</b>：時間が来たら、${TERMS.wolfMinority}だと思う閣僚に投票（スマホ）または「せーの」で指差し。最多票の閣僚が指名されます（同数なら決選投票！）。<br>` +
       `<b>④ 正体</b>：指名された閣僚は、まず自分の議題を声に出して答えてから正体を公開。${TERMS.wolfMinority}なら${TERMS.wolfMajority}の議題を言い当てれば逆転勝ち！${TERMS.wolfMajority}だったら${TERMS.wolfMinority}の勝ち — ${TERMS.wolfMinority}は名乗り出て自分の議題を発表します。最後に全議題が公開されます。`
     : `<b>① 通達</b>：${TERMS.spySpy}以外の全${TERMS.spyCitizen}に同じ議題が通達されます。${TERMS.spySpy}は自分が${TERMS.spySpy}だと分かりますが、議題を知りません。<br>` +
       `<b>② 閣議</b>：順番に質問し合います（例:「その政策、予算は足りそう？」）。${TERMS.spySpy}は話を合わせてバレないように！<br>` +
-      `<b>③ 投票</b>：時間が来たら、${TERMS.spySpy}だと思う閣僚に投票（スマホ）または「せーの」で指差し。最多票の閣僚が指名されます。<br>` +
+      `<b>③ 投票</b>：時間が来たら、${TERMS.spySpy}だと思う閣僚に投票（スマホ）または「せーの」で指差し。最多票の閣僚が指名されます（同数なら決選投票！）。<br>` +
       `<b>④ 正体</b>：指名された閣僚は、まず自分の議題を答えてから正体を公開。${TERMS.spySpy}なら本日の議題を当てれば逆転勝ち！正規の${TERMS.spyCitizen}だったら${TERMS.spySpy}の勝ち — ${TERMS.spySpy}は名乗り出ましょう。最後に議題が公開されます。`;
 }
 function fillHelp(mode) {
@@ -1006,6 +1016,9 @@ function shuffle(arr) {
   return a;
 }
 function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
 
 function poolItems() {
   saveSettings();
@@ -1152,17 +1165,21 @@ function startDiscussion() {
 
 function startTimer(sec) {
   clearInterval(timer.id);
-  timer.remain = sec; timer.total = sec; timer.paused = false;
+  timer.total = sec; timer.paused = false; timer.done = false;
+  timer.endsAt = Date.now() + sec * 1000;
+  timer.remainMs = sec * 1000;
   document.getElementById('pause-btn').textContent = '⏸ 一時停止';
   document.getElementById('timer-status').textContent = '🏛️ 閣議中！';
-  updateTimerUI();
-  timer.id = setInterval(tick, 1000);
+  hostTick();
+  timer.id = setInterval(hostTick, 250);
 }
-function tick() {
-  if (timer.paused) return;
-  timer.remain--;
+function hostTick() {
+  timer.remain = timer.paused
+    ? Math.ceil(timer.remainMs / 1000)
+    : Math.max(0, Math.ceil((timer.endsAt - Date.now()) / 1000));
   updateTimerUI();
-  if (timer.remain <= 0) {
+  if (!timer.paused && timer.remain <= 0 && !timer.done) {
+    timer.done = true;
     clearInterval(timer.id);
     timer.id = null;
     document.getElementById('timer-status').textContent = '⏰ 時間切れ！追及へ！';
@@ -1178,20 +1195,33 @@ function updateTimerUI() {
   document.getElementById('timer-bar').style.width = (timer.total ? (r / timer.total) * 100 : 0) + '%';
 }
 function togglePause() {
-  if (!timer.id) return;
-  timer.paused = !timer.paused;
+  if (timer.done || (!timer.id && !timer.paused)) return;
+  if (!timer.paused) {
+    timer.remainMs = Math.max(0, timer.endsAt - Date.now());
+    timer.paused = true;
+  } else {
+    timer.endsAt = Date.now() + timer.remainMs;
+    timer.paused = false;
+    if (!timer.id) timer.id = setInterval(hostTick, 250);
+  }
   document.getElementById('pause-btn').textContent = timer.paused ? '▶ 再開' : '⏸ 一時停止';
   document.getElementById('timer-status').textContent = timer.paused ? '⏸ 一時停止中' : '🏛️ 閣議中！';
+  hostTick();
   syncTimerToRoom();
 }
 function extendTimer() {
-  timer.remain += 60; timer.total += 60;
-  if (!timer.id) {
-    timer.paused = false;
+  if (timer.paused) {
+    timer.remainMs += 60000;
+  } else if (timer.done) {
+    timer.endsAt = Date.now() + 60000;
+    timer.done = false;
     document.getElementById('timer-status').textContent = '🏛️ 閣議中！';
-    timer.id = setInterval(tick, 1000);
+  } else {
+    timer.endsAt += 60000;
   }
-  updateTimerUI();
+  timer.total += 60;
+  if (!timer.id) timer.id = setInterval(hostTick, 250);
+  hostTick();
   syncTimerToRoom();
 }
 
@@ -1220,53 +1250,83 @@ function renderPhaseCards(phase) {
 function goVote() {
   clearInterval(timer.id); timer.id = null;
   game.accusedSeat = null;
+  game.gmVotes = {};
+  game.runoff = null;
+  const online = !!(onlineRoom && onlineRoom.isHost);
   showScreen('screen-result');
   renderPhaseCards('vote');
   const roleName = game.mode === 'wolf' ? TERMS.wolfMinority : TERMS.spySpy;
-  document.getElementById('vote-note').innerHTML =
-    `${roleName}だと思う閣僚を、スマホの人は投票／それ以外は「せーの」で指差し。<br>` +
-    `最多だった閣僚を下の名簿から選んで「指名」してください。`;
+  document.getElementById('accuse-btn').style.display = online ? 'none' : '';
+  document.getElementById('close-vote-btn').style.display = online ? '' : 'none';
+  document.getElementById('vote-note').innerHTML = online
+    ? `${roleName}だと思う閣僚に投票！スマホの閣僚は各自の画面で投票。<br>` +
+      `GM自身の1票と、スマホがない閣僚の票は、GMが名簿の「＋」で入れてください。全員分そろったら締め切り！`
+    : `${roleName}だと思う閣僚を全員で「せーの」で指差し！<br>` +
+      `いちばん多く指をさされた閣僚を名簿から選んで「指名」してください。`;
   renderVoteList();
-  hostSyncPhase('vote');
+  if (online && fb) {
+    fb.fs.updateDoc(fb.fs.doc(fb.db, 'rooms', onlineRoom.code), { phase: 'vote', runoff: null, gmVotes: {} }).catch(() => {});
+  }
 }
 
-/* 投票名簿: ホスト=得票を見ながら指名候補を選択 / プレイヤー=タップで投票 */
+/* 投票名簿:
+   オンラインGM = 得票のライブ集計＋「＋/−」でGM票・代理票を入力（票の重みは全員同じ1票）
+   プレイヤー   = タップで投票（決選投票中は対象者のみ）
+   オフラインGM = 指差し結果を見て名簿から指名者を選択 */
 function renderVoteList() {
   const box = document.getElementById('vote-list');
   if (!box) return;
   box.innerHTML = '';
   const isPlayer = !!(onlineRoom && !onlineRoom.isHost);
+  const online = !!onlineRoom;
+  const runoff = isPlayer
+    ? ((onlineRoom.room && onlineRoom.room.runoff) || null)
+    : (game ? (game.runoff || null) : null);
+  const gmVotes = isPlayer
+    ? ((onlineRoom.room && onlineRoom.room.gmVotes) || {})
+    : ((game && game.gmVotes) || {});
   const seats = isPlayer
     ? (onlineRoom.seats || []).map(s => ({ i: s.i, name: s.name }))
     : (game ? game.assignments.map((a, i) => ({ i: i, name: a.name })) : []);
-  // 得票集計（オンライン時のみ）
   const counts = {};
-  let voted = 0;
-  if (onlineRoom) (onlineRoom.seats || []).forEach(s => {
-    if (s.vote != null) { counts[s.vote] = (counts[s.vote] || 0) + 1; voted++; }
-  });
+  if (online) {
+    (onlineRoom.seats || []).forEach(s => { if (s.vote != null) counts[s.vote] = (counts[s.vote] || 0) + 1; });
+    Object.keys(gmVotes).forEach(k => { counts[k] = (counts[k] || 0) + (gmVotes[k] || 0); });
+  }
   const max = Math.max(0, ...Object.keys(counts).map(k => counts[k]));
   seats.forEach(s => {
+    const inRunoff = !runoff || runoff.includes(s.i);
     const div = document.createElement('div');
     div.className = 'result-player vote-row';
     const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = s.name;
     const rhs = document.createElement('span'); rhs.className = 'rhs';
-    if (onlineRoom) {
+    if (online && inRunoff) {
       const c = document.createElement('span');
       const n = counts[s.i] || 0;
       c.className = 'badge ' + (n === max && max > 0 ? 'role-spy' : 'role-citizen');
       c.textContent = n + '票';
       rhs.appendChild(c);
     }
+    if (online && !isPlayer && inRunoff) {
+      const minus = document.createElement('button');
+      minus.className = 'icon-btn'; minus.textContent = '−'; minus.title = '票を取り消す';
+      minus.onclick = ev => { ev.stopPropagation(); hostAdjustVote(s.i, -1); };
+      const plus = document.createElement('button');
+      plus.className = 'icon-btn'; plus.textContent = '＋'; plus.title = '票を入れる（GM票・代理票）';
+      plus.onclick = ev => { ev.stopPropagation(); hostAdjustVote(s.i, 1); };
+      rhs.appendChild(minus); rhs.appendChild(plus);
+    }
     div.appendChild(nm); div.appendChild(rhs);
-    if (isPlayer) {
+    if (!inRunoff) {
+      div.classList.add('novote');
+    } else if (isPlayer) {
       if (s.i === onlineRoom.mySeat) {
         div.classList.add('novote');
       } else {
         div.onclick = () => playerVote(s.i);
         if (onlineRoom.myVote === s.i) div.classList.add('selected');
       }
-    } else {
+    } else if (!online) {
       div.onclick = () => { game.accusedSeat = s.i; renderVoteList(); };
       if (game && game.accusedSeat === s.i) div.classList.add('selected');
     }
@@ -1274,10 +1334,55 @@ function renderVoteList() {
   });
 }
 
+function hostAdjustVote(i, d) {
+  game.gmVotes = game.gmVotes || {};
+  const v = Math.max(0, (game.gmVotes[i] || 0) + d);
+  if (v === 0) delete game.gmVotes[i]; else game.gmVotes[i] = v;
+  renderVoteList();
+  if (onlineRoom && onlineRoom.isHost && fb) {
+    fb.fs.updateDoc(fb.fs.doc(fb.db, 'rooms', onlineRoom.code), { gmVotes: game.gmVotes }).catch(() => {});
+  }
+}
+
+/* 投票締め切り: 最多票が1人なら自動指名、同数なら決選投票 */
+function hostCloseVoting() {
+  const counts = {};
+  (onlineRoom.seats || []).forEach(s => { if (s.vote != null) counts[s.vote] = (counts[s.vote] || 0) + 1; });
+  Object.keys(game.gmVotes || {}).forEach(k => { counts[k] = (counts[k] || 0) + game.gmVotes[k]; });
+  const entries = Object.keys(counts).map(k => ({ i: parseInt(k, 10), n: counts[k] }));
+  if (!entries.length) { alert('まだ1票も入っていません'); return; }
+  const max = Math.max(...entries.map(e => e.n));
+  const top = entries.filter(e => e.n === max).map(e => e.i);
+  if (top.length === 1) {
+    game.accusedSeat = top[0];
+    hostConfirmAccused();
+  } else {
+    startRunoff(top);
+  }
+}
+
+function startRunoff(tied) {
+  game.runoff = tied;
+  game.gmVotes = {};
+  const names = tied.map(i => game.assignments[i].name).join('、');
+  document.getElementById('vote-note').innerHTML =
+    `⚖️ ${esc(names)} が同数！<br>🔁 <b>決選投票</b>です。この中からもう一度投票してください。`;
+  renderVoteList();
+  if (onlineRoom && onlineRoom.isHost && fb) {
+    const { doc, writeBatch } = fb.fs;
+    const b = writeBatch(fb.db);
+    b.update(doc(fb.db, 'rooms', onlineRoom.code), { runoff: tied, gmVotes: {} });
+    (onlineRoom.seats || []).forEach(s => {
+      if (s.vote != null) b.update(doc(fb.db, 'rooms', onlineRoom.code, 'seats', String(s.i)), { vote: null });
+    });
+    b.commit().catch(() => {});
+  }
+}
+
 function hostConfirmAccused() {
   if (!game || game.accusedSeat == null) { alert('指名する閣僚を名簿から選んでください'); return; }
   game.accusedName = game.assignments[game.accusedSeat].name;
-  showAnswerCard(game.accusedName);
+  showAnswerCard(game.accusedName, game.mode);
   if (onlineRoom && onlineRoom.isHost && fb) {
     fb.fs.updateDoc(fb.fs.doc(fb.db, 'rooms', onlineRoom.code), {
       phase: 'answer', accusedSeat: game.accusedSeat, accusedName: game.accusedName
@@ -1285,12 +1390,27 @@ function hostConfirmAccused() {
   }
 }
 
-function showAnswerCard(name) {
+function showAnswerCard(name, mode) {
   showScreen('screen-result');
   renderPhaseCards('answer');
-  document.getElementById('answer-title').textContent = '🫵 指名されたのは ' + name + ' 閣僚！';
+  document.getElementById('answer-title').textContent = mode === 'spy'
+    ? `🕵️ ${TERMS.spySpy}の嫌疑をかけられたのは ${name}！`
+    : `🫵 造反の嫌疑をかけられたのは ${name}！`;
   document.getElementById('answer-note').innerHTML =
     'まずは<b>自分に通達された議題</b>を、声に出して答えてください。';
+  // 言い間違い防止: 指名された本人のスマホにだけ、自分の議題の確認ボタンを表示
+  const self = document.getElementById('answer-self');
+  const isAccusedMe = !!(onlineRoom && !onlineRoom.isHost && onlineRoom.room
+    && onlineRoom.room.accusedSeat === onlineRoom.mySeat);
+  self.style.display = isAccusedMe ? '' : 'none';
+  document.getElementById('answer-self-word').style.display = 'none';
+}
+
+function toggleAnswerSelf() {
+  const w = document.getElementById('answer-self-word');
+  const show = w.style.display === 'none';
+  w.style.display = show ? '' : 'none';
+  w.textContent = show ? (playerWordText() || '') : '';
 }
 
 function hostShowJudge() {
@@ -1304,6 +1424,11 @@ function hostShowJudge() {
   }
 }
 
+function roleChip(text, isBad) {
+  return `<span class="${isBad ? 'role-spy' : 'role-citizen'}"` +
+    ` style="display:inline-block; padding:2px 14px; border-radius:999px; font-size:.72em; font-weight:bold; vertical-align:middle">${text}</span>`;
+}
+
 function showJudgeCard(isWolf, name, mode) {
   showScreen('screen-result');
   renderPhaseCards('judge');
@@ -1311,21 +1436,21 @@ function showJudgeCard(isWolf, name, mode) {
   const n = document.getElementById('judge-note');
   if (mode === 'wolf') {
     if (isWolf) {
-      t.textContent = `🐺 ${name} は ${TERMS.wolfMinority} だった！`;
+      t.innerHTML = `🐺 ${esc(name)} は ${roleChip(TERMS.wolfMinority, true)} だった！`;
       n.innerHTML = `お見事！ただし${TERMS.wolfMinority}には逆転のチャンスがあります。<br>` +
         `<b>${TERMS.wolfMajority}の議題</b>をズバリ当てられたら逆転勝ち — 声に出して宣言してください！`;
     } else {
-      t.textContent = `⚖️ ${name} は ${TERMS.wolfMajority} だった…！`;
+      t.innerHTML = `⚖️ ${esc(name)} は ${roleChip(TERMS.wolfMajority, false)} だった…！`;
       n.innerHTML = `指名は失敗、${TERMS.wolfMinority}の勝利！<br>` +
         `${TERMS.wolfMinority}は名乗り出て、<b>自分に通達された議題</b>を発表してください。`;
     }
   } else {
     if (isWolf) {
-      t.textContent = `🕵️ ${name} は ${TERMS.spySpy} だった！`;
+      t.innerHTML = `🕵️ ${esc(name)} は ${roleChip(TERMS.spySpy, true)} だった！`;
       n.innerHTML = `お見事！ただし${TERMS.spySpy}には逆転のチャンスがあります。<br>` +
         `<b>本日の議題</b>をズバリ当てられたら逆転勝ち — 宣言してください！`;
     } else {
-      t.textContent = `⚖️ ${name} は正規の ${TERMS.spyCitizen} だった…！`;
+      t.innerHTML = `⚖️ ${esc(name)} は正規の ${roleChip(TERMS.spyCitizen, false)} だった…！`;
       n.innerHTML = `指名は失敗、${TERMS.spySpy}の勝利！<br>${TERMS.spySpy}は名乗り出てください。`;
     }
   }
@@ -1579,9 +1704,9 @@ function syncTimerToRoom() {
   if (!onlineRoom || !onlineRoom.isHost || !fb) return;
   fb.fs.updateDoc(fb.fs.doc(fb.db, 'rooms', onlineRoom.code), {
     timer: {
-      endsAt: timer.paused ? null : Date.now() + Math.max(0, timer.remain) * 1000,
+      endsAt: timer.paused ? null : timer.endsAt,
       paused: timer.paused,
-      remainMs: Math.max(0, timer.remain) * 1000,
+      remainMs: timer.paused ? timer.remainMs : Math.max(0, timer.endsAt - Date.now()),
       duration: timer.total
     }
   }).catch(() => {});
@@ -1798,12 +1923,18 @@ function onPlayerRoomChange() {
     showScreen('screen-result');
     renderPhaseCards('vote');
     const roleName = r.mode === 'wolf' ? TERMS.wolfMinority : TERMS.spySpy;
-    document.getElementById('vote-note').innerHTML =
-      `${roleName}だと思う閣僚をタップして投票しましょう。<br>（あとから変更もできます）`;
+    const runoffKey = JSON.stringify(r.runoff || null);
+    if (onlineRoom.lastRunoffKey !== runoffKey) {
+      onlineRoom.lastRunoffKey = runoffKey;
+      onlineRoom.myVote = null;
+    }
+    document.getElementById('vote-note').innerHTML = r.runoff
+      ? '⚖️ 同数のため 🔁 <b>決選投票</b>！<br>対象の閣僚から選んで、もう一度投票してください。'
+      : `${roleName}だと思う閣僚をタップして投票しましょう。<br>（あとから変更もできます）`;
     renderVoteList();
   } else if (r.phase === 'answer') {
     clearInterval(timer.id); timer.id = null;
-    showAnswerCard(r.accusedName || '？？？');
+    showAnswerCard(r.accusedName || '？？？', r.mode);
   } else if (r.phase === 'judge') {
     showJudgeCard(!!r.accusedIsWolf, r.accusedName || '？？？', r.mode);
   } else if (r.phase === 'result') {
@@ -1827,8 +1958,8 @@ function syncPlayerTimer(t) {
   const calc = () => {
     if (!onlineRoom || !onlineRoom.room) { clearInterval(timer.id); timer.id = null; return; }
     timer.remain = t.paused
-      ? Math.round((t.remainMs || 0) / 1000)
-      : Math.max(0, Math.round(((t.endsAt || 0) - Date.now()) / 1000));
+      ? Math.ceil((t.remainMs || 0) / 1000)
+      : Math.max(0, Math.ceil(((t.endsAt || 0) - Date.now()) / 1000));
     timer.paused = !!t.paused;
     updateTimerUI();
     document.getElementById('timer-status').textContent =
@@ -1883,7 +2014,23 @@ function leaveToSetup(force) {
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
+  updateModeIndicator(id);
   window.scrollTo(0, 0);
+}
+function updateModeIndicator(screenId) {
+  const wrap = document.getElementById('mode-indicator');
+  const gameScreens = ['screen-reveal', 'screen-lobby', 'screen-discussion', 'screen-result', 'screen-player'];
+  let mode = null;
+  if (gameScreens.includes(screenId)) {
+    if (onlineRoom && !onlineRoom.isHost) mode = onlineRoom.room ? onlineRoom.room.mode : null;
+    else if (game) mode = game.mode;
+    else if (onlineRoom && onlineRoom.isHost) mode = state.mode;
+  }
+  wrap.style.display = mode ? '' : 'none';
+  if (mode) {
+    wrap.querySelector('span').textContent =
+      mode === 'wolf' ? '🐺 いまのゲーム：造反者を探せ' : '🕵️ いまのゲーム：スパイを探せ';
+  }
 }
 
 /* ================= INIT ================= */
