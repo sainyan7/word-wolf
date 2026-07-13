@@ -31,7 +31,7 @@ service cloud.firestore {
               && request.resource.data.claimedBy == request.auth.uid
               && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['claimedBy']))
           || (resource.data.claimedBy == request.auth.uid
-              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['viewed']))
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['viewed', 'vote']))
         );
       }
 
