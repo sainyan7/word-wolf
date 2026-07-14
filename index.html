@@ -327,7 +327,10 @@
     <div class="card">
       <h2>着席状況</h2>
       <div class="result-players" id="lobby-seats"></div>
-      <button class="btn btn-sub btn-small mt10" onclick="hostRevealUnclaimed()">📜 未着席の閣僚はこの端末で確認する</button>
+      <div class="empty-note" style="text-align:left; margin:10px 0 0">
+        🎩「GMが担当」を押すと、その席を<b>GM自身がこの端末でプレイ</b>できます（スマホ不要）。
+      </div>
+      <button class="btn btn-sub btn-small mt10" onclick="hostRevealUnclaimed()">📜 未着席の閣僚（スマホ以外）をこの端末で確認する</button>
     </div>
 
     <button class="btn btn-primary" onclick="hostStartDiscussion()">🏛️ 閣議を開始する（タイマー開始）</button>
@@ -494,7 +497,8 @@
     <div class="card reveal-cover" id="vote-card">
       <div class="big">🗳️ 投票タイム！</div>
       <div class="note" id="vote-note"></div>
-      <div class="result-players" id="vote-list" style="text-align:left; margin-bottom:18px"></div>
+      <div class="result-players" id="vote-list" style="text-align:left; margin-bottom:10px"></div>
+      <div id="vote-progress" style="display:none; font-size:13px; color:var(--muted); text-align:left; margin-bottom:12px; line-height:1.7"></div>
       <div class="vote-warn" id="vote-warn" style="display:none"></div>
       <button class="btn btn-pink host-only" id="accuse-btn" onclick="hostConfirmAccused()" style="display:none">🫵 この閣僚を指名する</button>
       <button class="btn btn-pink host-only" id="close-vote-btn" onclick="hostCloseVoting()" style="display:none">🔒 投票を締め切る</button>
@@ -1415,11 +1419,11 @@ function renderVoteList() {
   const seats = isPlayer
     ? (onlineRoom.seats || []).map(s => ({ i: s.i, name: s.name }))
     : (game ? game.assignments.map((a, i) => ({ i: i, name: a.name })) : []);
+  // 得票表示は「GM画面」だけ、しかも「GM＋スマホ非利用者分（＝GMが入力した代理票）」のみ。
+  // スマホからの投票は締め切るまでリアルタイムでは見せない（プレイヤー画面には一切表示しない）。
+  const showCounts = online && !isPlayer;
   const counts = {};
-  if (online) {
-    (onlineRoom.seats || []).forEach(s => { if (s.vote != null) counts[s.vote] = (counts[s.vote] || 0) + 1; });
-    Object.keys(gmVotes).forEach(k => { counts[k] = (counts[k] || 0) + (gmVotes[k] || 0); });
-  }
+  if (showCounts) Object.keys(gmVotes).forEach(k => { counts[k] = gmVotes[k] || 0; });
   const max = Math.max(0, ...Object.keys(counts).map(k => counts[k]));
   seats.forEach(s => {
     const inRunoff = !runoff || runoff.includes(s.i);
@@ -1427,7 +1431,7 @@ function renderVoteList() {
     div.className = 'result-player vote-row';
     const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = s.name;
     const rhs = document.createElement('span'); rhs.className = 'rhs';
-    if (online && inRunoff) {
+    if (showCounts && inRunoff) {
       const c = document.createElement('span');
       const n = counts[s.i] || 0;
       c.className = 'badge ' + (n === max && max > 0 ? 'role-spy' : 'role-citizen');
@@ -1459,6 +1463,20 @@ function renderVoteList() {
     }
     box.appendChild(div);
   });
+  renderVoteProgress(isPlayer);
+}
+
+/* スマホ投票の「進み具合」だけをGMに表示（誰が誰に入れたかは締め切りまで非表示） */
+function renderVoteProgress(isPlayer) {
+  const el = document.getElementById('vote-progress');
+  if (!el) return;
+  if (!onlineRoom || isPlayer || !fb) { el.style.display = 'none'; return; }
+  const phoneSeats = (onlineRoom.seats || []).filter(s => s.claimedBy && s.claimedBy !== fb.uid);
+  if (!phoneSeats.length) { el.style.display = 'none'; return; }
+  const voted = phoneSeats.filter(s => s.vote != null).length;
+  el.style.display = '';
+  el.innerHTML = `📱 スマホからの投票：<b>${voted} / ${phoneSeats.length}人</b> が投票済み<br>` +
+    `<span style="font-size:12px">（誰が誰に入れたかは、締め切るまで表示されません）</span>`;
 }
 
 let voteWarnTimer = null;
@@ -1830,21 +1848,71 @@ function renderLobbySeats() {
   if (!box || !onlineRoom) return;
   box.innerHTML = '';
   (onlineRoom.seats || []).forEach(s => {
+    const isMine = !!(fb && s.claimedBy && s.claimedBy === fb.uid);
     const div = document.createElement('div');
     div.className = 'result-player';
     const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = s.name;
-    const badge = document.createElement('span');
-    badge.className = 'seat-status ' + (s.claimedBy ? 'role-citizen' : '');
-    if (!s.claimedBy) badge.style.background = '#eeecf8';
-    badge.textContent = s.claimedBy ? (s.viewed ? '👁 議題確認済み' : '✅ 着席') : '🪑 この端末で確認';
-    div.appendChild(nm); div.appendChild(badge);
+    const rhs = document.createElement('span'); rhs.className = 'rhs';
+    if (isMine) {
+      const badge = document.createElement('span');
+      badge.className = 'seat-status';
+      badge.style.background = '#e8e2ff'; badge.style.color = 'var(--accent)';
+      badge.textContent = '🎩 あなた（GM）';
+      const reBtn = document.createElement('button');
+      reBtn.className = 'icon-btn'; reBtn.textContent = '🔄'; reBtn.title = '議題を再確認';
+      reBtn.onclick = () => hostRevealSeat(s.i);
+      const relBtn = document.createElement('button');
+      relBtn.className = 'icon-btn danger'; relBtn.textContent = '✕'; relBtn.title = '担当を解除';
+      relBtn.onclick = () => hostReleaseSeat(s.i);
+      rhs.appendChild(badge); rhs.appendChild(reBtn); rhs.appendChild(relBtn);
+    } else if (s.claimedBy) {
+      const badge = document.createElement('span');
+      badge.className = 'seat-status role-citizen';
+      badge.textContent = s.viewed ? '👁 議題確認済み' : '✅ 着席';
+      rhs.appendChild(badge);
+    } else {
+      const badge = document.createElement('span');
+      badge.className = 'seat-status';
+      badge.style.background = '#eeecf8';
+      badge.textContent = '🪑 未着席';
+      const takeBtn = document.createElement('button');
+      takeBtn.className = 'btn btn-sub btn-small';
+      takeBtn.style.width = 'auto'; takeBtn.style.padding = '6px 12px';
+      takeBtn.textContent = '🎩 GMが担当';
+      takeBtn.onclick = () => hostTakeSeat(s.i);
+      rhs.appendChild(badge); rhs.appendChild(takeBtn);
+    }
+    div.appendChild(nm); div.appendChild(rhs);
     box.appendChild(div);
   });
 }
 
+/* GM自身が席を担当する（この端末でプレイ）。スマホ不要。 */
+async function hostTakeSeat(i) {
+  const name = (onlineRoom.seats.find(s => s.i === i) || {}).name || '';
+  if (!confirm(`「${name}」の席を、GM（あなた）が担当します。\nこの端末で議題を確認できます。よろしいですか？`)) return;
+  try {
+    await fb.fs.updateDoc(fb.fs.doc(fb.db, 'rooms', onlineRoom.code, 'seats', String(i)), { claimedBy: fb.uid, viewed: true });
+  } catch (e) { alert('担当の設定に失敗しました: ' + e.message); return; }
+  hostRevealSeat(i);
+}
+function hostRevealSeat(i) {
+  game.revealOrder = [i];
+  game.revealIndex = 0;
+  game.returnToLobby = true;
+  showScreen('screen-reveal');
+  renderPass();
+}
+async function hostReleaseSeat(i) {
+  if (!confirm('この席のGM担当を解除しますか？')) return;
+  try {
+    await fb.fs.updateDoc(fb.fs.doc(fb.db, 'rooms', onlineRoom.code, 'seats', String(i)), { claimedBy: null, viewed: false });
+  } catch (e) {}
+}
+
 function hostRevealUnclaimed() {
   const un = (onlineRoom.seats || []).filter(s => !s.claimedBy).map(s => s.i);
-  if (!un.length) { alert('全員スマホで着席済みです。この端末での確認は不要です。'); return; }
+  if (!un.length) { alert('全員着席済みです。この端末での確認は不要です。'); return; }
   game.revealOrder = un;
   game.revealIndex = 0;
   game.returnToLobby = true;
