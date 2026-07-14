@@ -478,7 +478,7 @@
       <button class="btn btn-pink mt10 host-only" onclick="goVote()">🗳️ 閣議を打ち切って追及へ</button>
     </div>
 
-    <div class="card player-only" id="p-disc-word" style="text-align:center; padding:16px">
+    <div class="card" id="p-disc-word" style="display:none; text-align:center; padding:16px">
       <button class="btn btn-sub btn-small" onclick="togglePeek()">📜 自分の議題を確認する／隠す</button>
       <div id="p-peek" style="display:none; font-size:22px; font-weight:bold; margin-top:10px; word-break:break-word"></div>
     </div>
@@ -1288,6 +1288,10 @@ function startDiscussion() {
   document.getElementById('discussion-hint').innerHTML = game.mode === 'wolf'
     ? '💡 ヒント：「その政策に賛成？」「予算はどれくらい必要？」など、議題を直接言わずに探り合おう。'
     : `💡 ヒント：順番に閣僚を指名して質問しよう。「担当省庁は？」「国民の反応は？」など。${TERMS.spySpy}は知ったかぶりで乗り切れ！`;
+  // GM自身が席を担当している場合は、GMも自分の議題を確認できるようにする
+  const pd = document.getElementById('p-disc-word');
+  if (pd) pd.style.display = (hostGmSeat() != null) ? '' : 'none';
+  document.getElementById('p-peek').style.display = 'none';
   startTimer(state.time);
   hostSyncPhase('discussion');
   syncTimerToRoom();
@@ -1389,19 +1393,44 @@ function goVote() {
   document.getElementById('accuse-btn').style.display = online ? 'none' : '';
   document.getElementById('close-vote-btn').style.display = online ? '' : 'none';
   hideVoteWarn();
-  document.getElementById('vote-note').innerHTML = online
-    ? `${roleName}だと思う閣僚に投票！スマホの閣僚は各自の画面で投票。<br>` +
-      `GM自身の1票と、スマホがない閣僚の票は、GMが名簿の「＋」で入れてください。全員分そろったら締め切り！`
-    : `${roleName}だと思う閣僚を全員で「せーの」で指差し！<br>` +
+  // オンラインGMの案内文は renderVoteList が投票モードに応じて設定する
+  if (!online) {
+    document.getElementById('vote-note').innerHTML =
+      `${roleName}だと思う閣僚を全員で「せーの」で指差し！<br>` +
       `いちばん多く指をさされた閣僚を名簿から選んで「指名」してください。`;
+  }
   renderVoteList();
   if (online && fb) {
     fb.fs.updateDoc(fb.fs.doc(fb.db, 'rooms', onlineRoom.code), { phase: 'vote', runoff: null, gmVotes: {} }).catch(() => {});
   }
 }
 
+/* GMが担当している席（この端末でプレイ中の席）。担当なしなら null */
+function hostGmSeat() {
+  if (!onlineRoom || !onlineRoom.isHost || !fb) return null;
+  const s = (onlineRoom.seats || []).find(x => x.claimedBy === fb.uid);
+  return s ? s.i : null;
+}
+/* GMが入力すべき票数 ＝ 出席人数 − スマホ着席者数（GM自身＋スマホ非利用者の分） */
+function gmVoteQuota() {
+  const phone = (onlineRoom.seats || []).filter(s => s.claimedBy && s.claimedBy !== fb.uid).length;
+  const total = game ? game.assignments.length : (onlineRoom.seats || []).length;
+  return total - phone;
+}
+function gmVoteNoteHTML(gmMode) {
+  const roleName = game.mode === 'wolf' ? TERMS.wolfMinority : TERMS.spySpy;
+  if (gmMode === 'none')
+    return '📱 全員がスマホで投票します。<b>この端末（GM）からの投票はありません</b>。<br>全員の投票が終わったら「締め切る」を押してください。';
+  if (gmMode === 'single')
+    return `<b>${roleName}</b>だと思う閣僚を<b>1人だけタップ</b>して投票してください。<br>スマホ勢の投票が終わったら「締め切る」！`;
+  return `<b>${roleName}</b>だと思う閣僚に投票！スマホの閣僚は各自の画面で投票。<br>` +
+    `<b>GM自身＋スマホがない閣僚</b>の票は名簿の「＋」で入れてください。全員分そろったら「締め切る」！`;
+}
+
 /* 投票名簿:
-   オンラインGM = 得票のライブ集計＋「＋/−」でGM票・代理票を入力（票の重みは全員同じ1票）
+   オンラインGM(multi) = 得票集計＋「＋/−」でGM票・代理票を入力
+   オンラインGM(single) = 1票だけタップ（全員スマホ＋GMは1票のみ）
+   オンラインGM(none)  = GMは投票なし（全員スマホ）
    プレイヤー   = タップで投票（決選投票中は対象者のみ）
    オフラインGM = 指差し結果を見て名簿から指名者を選択 */
 function renderVoteList() {
@@ -1410,6 +1439,7 @@ function renderVoteList() {
   box.innerHTML = '';
   const isPlayer = !!(onlineRoom && !onlineRoom.isHost);
   const online = !!onlineRoom;
+  const isGm = online && !isPlayer;
   const runoff = isPlayer
     ? ((onlineRoom.room && onlineRoom.room.runoff) || null)
     : (game ? (game.runoff || null) : null);
@@ -1419,12 +1449,22 @@ function renderVoteList() {
   const seats = isPlayer
     ? (onlineRoom.seats || []).map(s => ({ i: s.i, name: s.name }))
     : (game ? game.assignments.map((a, i) => ({ i: i, name: a.name })) : []);
-  // 得票表示は「GM画面」だけ、しかも「GM＋スマホ非利用者分（＝GMが入力した代理票）」のみ。
-  // スマホからの投票は締め切るまでリアルタイムでは見せない（プレイヤー画面には一切表示しない）。
-  const showCounts = online && !isPlayer;
+
+  // GMの投票モードを決定（入力すべき票数で分岐）
+  let gmMode = null, gmSeat = null;
+  if (isGm) {
+    const q = gmVoteQuota();
+    gmMode = q <= 0 ? 'none' : (q === 1 ? 'single' : 'multi');
+    gmSeat = hostGmSeat();
+    if (!runoff) document.getElementById('vote-note').innerHTML = gmVoteNoteHTML(gmMode);
+  }
+
+  // 得票バッジは multi モードのGMだけ（GM入力分のみ。スマホ票は締め切りまで非表示）
+  const showCounts = isGm && gmMode === 'multi';
   const counts = {};
   if (showCounts) Object.keys(gmVotes).forEach(k => { counts[k] = gmVotes[k] || 0; });
   const max = Math.max(0, ...Object.keys(counts).map(k => counts[k]));
+
   seats.forEach(s => {
     const inRunoff = !runoff || runoff.includes(s.i);
     const div = document.createElement('div');
@@ -1438,7 +1478,7 @@ function renderVoteList() {
       c.textContent = n + '票';
       rhs.appendChild(c);
     }
-    if (online && !isPlayer && inRunoff) {
+    if (isGm && gmMode === 'multi' && inRunoff) {
       const minus = document.createElement('button');
       minus.className = 'icon-btn'; minus.textContent = '−'; minus.title = '票を取り消す';
       minus.onclick = ev => { ev.stopPropagation(); hostAdjustVote(s.i, -1); };
@@ -1451,12 +1491,19 @@ function renderVoteList() {
     if (!inRunoff) {
       div.classList.add('novote');
     } else if (isPlayer) {
-      if (s.i === onlineRoom.mySeat) {
-        div.classList.add('novote');
-      } else {
+      if (s.i === onlineRoom.mySeat) div.classList.add('novote');
+      else {
         div.onclick = () => playerVote(s.i);
         if (onlineRoom.myVote === s.i) div.classList.add('selected');
       }
+    } else if (isGm && gmMode === 'single') {
+      if (s.i === gmSeat) div.classList.add('novote');   // 自分の席には投票しない
+      else {
+        div.onclick = () => hostSingleVote(s.i);
+        if ((gmVotes[s.i] || 0) > 0) div.classList.add('selected');
+      }
+    } else if (isGm && gmMode === 'none') {
+      div.classList.add('novote');
     } else if (!online) {
       div.onclick = () => { game.accusedSeat = s.i; renderVoteList(); };
       if (game && game.accusedSeat === s.i) div.classList.add('selected');
@@ -1464,6 +1511,15 @@ function renderVoteList() {
     box.appendChild(div);
   });
   renderVoteProgress(isPlayer);
+}
+
+/* GMの単一投票（全員スマホ＋GMは1票のみのケース） */
+function hostSingleVote(i) {
+  game.gmVotes = { [i]: 1 };
+  renderVoteList();
+  if (onlineRoom && onlineRoom.isHost && fb) {
+    fb.fs.updateDoc(fb.fs.doc(fb.db, 'rooms', onlineRoom.code), { gmVotes: game.gmVotes }).catch(() => {});
+  }
 }
 
 /* スマホ投票の「進み具合」だけをGMに表示（誰が誰に入れたかは締め切りまで非表示） */
@@ -1847,6 +1903,8 @@ function renderLobbySeats() {
   const box = document.getElementById('lobby-seats');
   if (!box || !onlineRoom) return;
   box.innerHTML = '';
+  // GMは1人なので、担当できる席は1つだけ（既に担当していたら他の席には「担当」ボタンを出さない）
+  const gmHasSeat = !!(fb && (onlineRoom.seats || []).some(s => s.claimedBy === fb.uid));
   (onlineRoom.seats || []).forEach(s => {
     const isMine = !!(fb && s.claimedBy && s.claimedBy === fb.uid);
     const div = document.createElement('div');
@@ -1875,12 +1933,15 @@ function renderLobbySeats() {
       badge.className = 'seat-status';
       badge.style.background = '#eeecf8';
       badge.textContent = '🪑 未着席';
-      const takeBtn = document.createElement('button');
-      takeBtn.className = 'btn btn-sub btn-small';
-      takeBtn.style.width = 'auto'; takeBtn.style.padding = '6px 12px';
-      takeBtn.textContent = '🎩 GMが担当';
-      takeBtn.onclick = () => hostTakeSeat(s.i);
-      rhs.appendChild(badge); rhs.appendChild(takeBtn);
+      rhs.appendChild(badge);
+      if (!gmHasSeat) {
+        const takeBtn = document.createElement('button');
+        takeBtn.className = 'btn btn-sub btn-small';
+        takeBtn.style.width = 'auto'; takeBtn.style.padding = '6px 12px';
+        takeBtn.textContent = '🎩 GMが担当';
+        takeBtn.onclick = () => hostTakeSeat(s.i);
+        rhs.appendChild(takeBtn);
+      }
     }
     div.appendChild(nm); div.appendChild(rhs);
     box.appendChild(div);
@@ -2105,11 +2166,23 @@ function togglePlayerWord() {
   }
 }
 
+// 議論画面で見る「自分の議題」: プレイヤーはサーバー配布分、GM担当時はローカルの割り当てから
+function myDiscussionWord() {
+  if (onlineRoom && !onlineRoom.isHost) return playerWordText();
+  const gs = hostGmSeat();
+  if (gs != null && game) {
+    const a = game.assignments[gs];
+    if (game.mode === 'spy' && a.isWolf) return '🕵️ あなたは他国の' + TERMS.spySpy + '！';
+    return a.word;
+  }
+  return '';
+}
+
 function togglePeek() {
   const peek = document.getElementById('p-peek');
   const show = peek.style.display === 'none';
   peek.style.display = show ? '' : 'none';
-  peek.textContent = show ? (playerWordText() || '') : '';
+  peek.textContent = show ? (myDiscussionWord() || '') : '';
 }
 
 function onPlayerRoomChange() {
@@ -2142,6 +2215,7 @@ function onPlayerRoomChange() {
     document.getElementById('discussion-hint').innerHTML = r.mode === 'wolf'
       ? '💡 ヒント：「その政策に賛成？」「予算はどれくらい必要？」など、議題を直接言わずに探り合おう。'
       : `💡 ヒント：順番に閣僚を指名して質問しよう。${TERMS.spySpy}は知ったかぶりで乗り切れ！`;
+    document.getElementById('p-disc-word').style.display = '';
     document.getElementById('p-peek').style.display = 'none';
     showScreen('screen-discussion');
     syncPlayerTimer(r.timer || {});
