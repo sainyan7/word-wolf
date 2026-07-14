@@ -1601,12 +1601,17 @@ function showJudgeCard(isWolf, name, mode) {
       ? `👉 <b>${esc(name)}</b> は「<b>${goodRole}の議題</b>」をズバリ宣言してください。<br><b>当たれば逆転勝ち</b>、ハズレなら<b>${goodRole}の勝ち</b>です。`
       : `👉 <b>${esc(name)}</b> は「<b>本日の議題</b>」をズバリ宣言してください。<br><b>当たれば逆転勝ち</b>、ハズレなら<b>${goodRole}の勝ち</b>です。`);
   } else {
+    // 演出のヒントはGM（ホスト）側だけに表示。プレイヤー画面には問いかけのみ。
+    const isPlayerView = !!(onlineRoom && !onlineRoom.isHost);
+    const gmHint = isPlayerView ? '' : (mode === 'wolf'
+      ? `<br>（${badRole}に名乗り出て議題を発表してもらってから最終結果を表示すると、盛り上がります）`
+      : `<br>（${badRole}に名乗り出てもらってから最終結果を表示すると、盛り上がります）`);
     set('judge-verdict', '<span class="verdict-badge verdict-ng">💥 指名失敗…</span>');
     set('judge-role', '⚖️ ' + (mode === 'spy' ? '正規の ' : '') + roleChip(goodRole, false) + ' だった…');
     set('judge-win', `<span style="color:#d81b55">🏆 ${badRole}の勝利！</span>`);
-    set('judge-action', mode === 'wolf'
-      ? `👉 さて、<b>誰が${badRole}</b>で、<b>どんな議題が通達されていた</b>のでしょうか…？<br>（${badRole}に名乗り出て議題を発表してもらってから最終結果を表示すると、盛り上がります）`
-      : `👉 さて、いったい<b>誰が${badRole}だった</b>のでしょうか…？<br>（${badRole}に名乗り出てもらってから最終結果を表示すると、盛り上がります）`);
+    set('judge-action', (mode === 'wolf'
+      ? `👉 さて、<b>誰が${badRole}</b>で、<b>どんな議題が通達されていた</b>のでしょうか…？`
+      : `👉 さて、いったい<b>誰が${badRole}だった</b>のでしょうか…？`) + gmHint);
   }
 }
 
