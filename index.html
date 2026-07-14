@@ -638,12 +638,12 @@ function helpHTML(mode) {
   return mode === 'wolf'
     ? `<b>① 通達</b>：全閣僚に議題が配られますが、<b>${TERMS.wolfMinority}だけ違う議題</b>を通達されています。<b>自分がどちらかは分かりません</b>。<br>` +
       `<b>② 閣議</b>：議題について話し合い、<b>話が噛み合わない閣僚を探します</b>。<b>議題をそのまま口に出すのはNG</b>！<br>` +
-      `<b>③ 投票</b>：時間が来たら、<b>${TERMS.wolfMinority}だと思う閣僚に投票</b>（スマホ）または「せーの」で指差し。<b>最多票の閣僚が指名</b>されます（同数なら<b>決選投票</b>）。<br>` +
-      `<b>④ 正体</b>：指名された閣僚は<b>まず自分の議題を声に出して答え</b>、そのあとGMが正体を公開。<b>${TERMS.wolfMinority}なら、${TERMS.wolfMajority}の議題を言い当てれば逆転勝ち</b>！<b>${TERMS.wolfMajority}だったら${TERMS.wolfMinority}の勝ち</b>（${TERMS.wolfMinority}は名乗り出て自分の議題を発表）。最後に<b>全員の議題が公開</b>されます。`
+      `<b>③ 投票</b>：時間が来たら、<b>${TERMS.wolfMinority}だと思う閣僚に投票</b>（スマホ）または「せーの」で指差し。<b>最多票の閣僚が指名</b>されます（同数なら<b>決選投票</b>）。${TERMS.wolfMinority}が複数いる設定では<b>人数分の票</b>を入れます（同じ人に2票は不可）。<br>` +
+      `<b>④ 正体</b>：指名された閣僚は<b>まず自分の議題を声に出して答え</b>、そのあとGMが正体を公開。<b>${TERMS.wolfMinority}なら、${TERMS.wolfMajority}の議題を言い当てれば逆転勝ち</b>（複数なら<b>誰か1人でも</b>当てればOK）！<b>${TERMS.wolfMajority}だったら${TERMS.wolfMinority}の勝ち</b>（${TERMS.wolfMinority}は名乗り出て自分の議題を発表）。最後に<b>全員の議題が公開</b>されます。`
     : `<b>① 通達</b>：${TERMS.spySpy}以外の全${TERMS.spyCitizen}に<b>同じ議題</b>が通達されます。<b>${TERMS.spySpy}は自分が${TERMS.spySpy}だと分かりますが、議題を知りません</b>。<br>` +
       `<b>② 閣議</b>：順番に質問し合います（例:「その政策、予算は足りそう？」）。<b>${TERMS.spySpy}は話を合わせてバレないように</b>！<br>` +
-      `<b>③ 投票</b>：時間が来たら、<b>${TERMS.spySpy}だと思う閣僚に投票</b>（スマホ）または「せーの」で指差し。<b>最多票の閣僚が指名</b>されます（同数なら<b>決選投票</b>）。<br>` +
-      `<b>④ 正体</b>：指名された閣僚は<b>まず自分の議題を答え</b>、そのあとGMが正体を公開。<b>${TERMS.spySpy}なら、本日の議題を当てれば逆転勝ち</b>！<b>正規の${TERMS.spyCitizen}だったら${TERMS.spySpy}の勝ち</b>（${TERMS.spySpy}は名乗り出る）。最後に<b>議題が公開</b>されます。`;
+      `<b>③ 投票</b>：時間が来たら、<b>${TERMS.spySpy}だと思う閣僚に投票</b>（スマホ）または「せーの」で指差し。<b>最多票の閣僚が指名</b>されます（同数なら<b>決選投票</b>）。${TERMS.spySpy}が複数いる設定では<b>人数分の票</b>を入れます（同じ人に2票は不可）。<br>` +
+      `<b>④ 正体</b>：指名された閣僚は<b>まず自分の議題を答え</b>、そのあとGMが正体を公開。<b>${TERMS.spySpy}なら、本日の議題を当てれば逆転勝ち</b>（複数なら<b>誰か1人でも</b>当てればOK）！<b>正規の${TERMS.spyCitizen}だったら${TERMS.spySpy}の勝ち</b>（${TERMS.spySpy}は名乗り出る）。最後に<b>議題が公開</b>されます。`;
 }
 function fillHelp(mode) {
   document.querySelectorAll('.help-body-dyn').forEach(el => { el.innerHTML = helpHTML(mode); });
@@ -1383,25 +1383,32 @@ function renderPhaseCards(phase) {
 
 function goVote() {
   clearInterval(timer.id); timer.id = null;
-  game.accusedSeat = null;
+  game.accusedSel = [];
+  game.accusedSeats = null;
+  game.accusedNames = null;
+  game.preAccused = [];
   game.gmVotes = {};
   game.runoff = null;
+  game.runoffSlots = null;
   const online = !!(onlineRoom && onlineRoom.isHost);
   showScreen('screen-result');
   renderPhaseCards('vote');
   const roleName = game.mode === 'wolf' ? TERMS.wolfMinority : TERMS.spySpy;
+  const W = gameWolfCount();
   document.getElementById('accuse-btn').style.display = online ? 'none' : '';
   document.getElementById('close-vote-btn').style.display = online ? '' : 'none';
   hideVoteWarn();
   // オンラインGMの案内文は renderVoteList が投票モードに応じて設定する
   if (!online) {
-    document.getElementById('vote-note').innerHTML =
-      `${roleName}だと思う閣僚を全員で「せーの」で指差し！<br>` +
-      `いちばん多く指をさされた閣僚を名簿から選んで「指名」してください。`;
+    document.getElementById('vote-note').innerHTML = W === 1
+      ? `${roleName}だと思う閣僚を全員で「せーの」で指差し！<br>` +
+        `いちばん多く指をさされた閣僚を名簿から選んで「指名」してください。`
+      : `${roleName}だと思う閣僚を全員で「せーの」で指差し（1人${W}票・別々の閣僚へ）！<br>` +
+        `票の多かった<b>${W}人</b>を名簿から選んで「指名」してください。`;
   }
   renderVoteList();
   if (online && fb) {
-    fb.fs.updateDoc(fb.fs.doc(fb.db, 'rooms', onlineRoom.code), { phase: 'vote', runoff: null, gmVotes: {} }).catch(() => {});
+    fb.fs.updateDoc(fb.fs.doc(fb.db, 'rooms', onlineRoom.code), { phase: 'vote', runoff: null, runoffSlots: null, gmVotes: {} }).catch(() => {});
   }
 }
 
@@ -1411,20 +1418,43 @@ function hostGmSeat() {
   const s = (onlineRoom.seats || []).find(x => x.claimedBy === fb.uid);
   return s ? s.i : null;
 }
-/* GMが入力すべき票数 ＝ 出席人数 − スマホ着席者数（GM自身＋スマホ非利用者の分） */
+/* GMが票を入力すべき人数 ＝ 出席人数 − スマホ着席者数（GM自身＋スマホ非利用者の分） */
 function gmVoteQuota() {
   const phone = (onlineRoom.seats || []).filter(s => s.claimedBy && s.claimedBy !== fb.uid).length;
   const total = game ? game.assignments.length : (onlineRoom.seats || []).length;
   return total - phone;
 }
-function gmVoteNoteHTML(gmMode) {
+
+/* ---- 複数造反者・スパイ対応のヘルパー ---- */
+// 座席の投票を配列に正規化（1人設定=数値 / 複数設定=配列 の両方に対応）
+function seatVotes(s) {
+  const v = s ? s.vote : null;
+  if (v == null) return [];
+  return Array.isArray(v) ? v : [v];
+}
+// このゲームの造反者(スパイ)の人数
+function gameWolfCount() {
+  return game ? Math.max(1, game.assignments.filter(a => a.isWolf).length) : 1;
+}
+// 1人のプレイヤーが投じる票数（決選投票中は残り枠数）
+function hostAllowance() {
+  return (game && game.runoff) ? (game.runoffSlots || 1) : gameWolfCount();
+}
+function playerAllowance() {
+  const r = onlineRoom && onlineRoom.room;
+  if (!r) return 1;
+  return r.runoff ? (r.runoffSlots || 1) : Math.max(1, r.wolfCount || 1);
+}
+
+function gmVoteNoteHTML(gmMode, allow) {
   const roleName = game.mode === 'wolf' ? TERMS.wolfMinority : TERMS.spySpy;
+  const votesTxt = allow > 1 ? `<b>${allow}人</b>（1人1票ずつ）` : '<b>1人だけ</b>';
   if (gmMode === 'none')
     return '📱 全員がスマホで投票します。<b>この端末（GM）からの投票はありません</b>。<br>全員の投票が終わったら「締め切る」を押してください。';
   if (gmMode === 'single')
-    return `<b>${roleName}</b>だと思う閣僚を<b>1人だけタップ</b>して投票してください。<br>スマホ勢の投票が終わったら「締め切る」！`;
-  return `<b>${roleName}</b>だと思う閣僚に投票！スマホの閣僚は各自の画面で投票。<br>` +
-    `<b>GM自身＋スマホがない閣僚</b>の票は名簿の「＋」で入れてください。全員分そろったら「締め切る」！`;
+    return `<b>${roleName}</b>だと思う閣僚を${votesTxt}タップして投票してください。<br>スマホ勢の投票が終わったら「締め切る」！`;
+  return `<b>${roleName}</b>だと思う閣僚に投票！スマホの閣僚は各自の画面で投票${allow > 1 ? `（1人${allow}票）` : ''}。<br>` +
+    `<b>GM自身＋スマホがない閣僚</b>の票は名簿の「＋」で入れてください（1人あたり${allow}票）。全員分そろったら「締め切る」！`;
 }
 
 /* 投票名簿:
@@ -1450,13 +1480,15 @@ function renderVoteList() {
     ? (onlineRoom.seats || []).map(s => ({ i: s.i, name: s.name }))
     : (game ? game.assignments.map((a, i) => ({ i: i, name: a.name })) : []);
 
-  // GMの投票モードを決定（入力すべき票数で分岐）
+  const allow = isPlayer ? playerAllowance() : (game ? hostAllowance() : 1);
+
+  // GMの投票モードを決定（入力すべき人数で分岐）
   let gmMode = null, gmSeat = null;
   if (isGm) {
     const q = gmVoteQuota();
     gmMode = q <= 0 ? 'none' : (q === 1 ? 'single' : 'multi');
     gmSeat = hostGmSeat();
-    if (!runoff) document.getElementById('vote-note').innerHTML = gmVoteNoteHTML(gmMode);
+    if (!runoff) document.getElementById('vote-note').innerHTML = gmVoteNoteHTML(gmMode, allow);
   }
 
   // 得票バッジは multi モードのGMだけ（GM入力分のみ。スマホ票は締め切りまで非表示）
@@ -1464,6 +1496,7 @@ function renderVoteList() {
   const counts = {};
   if (showCounts) Object.keys(gmVotes).forEach(k => { counts[k] = gmVotes[k] || 0; });
   const max = Math.max(0, ...Object.keys(counts).map(k => counts[k]));
+  const myVotes = isPlayer ? (onlineRoom.myVotes || []) : [];
 
   seats.forEach(s => {
     const inRunoff = !runoff || runoff.includes(s.i);
@@ -1494,7 +1527,7 @@ function renderVoteList() {
       if (s.i === onlineRoom.mySeat) div.classList.add('novote');
       else {
         div.onclick = () => playerVote(s.i);
-        if (onlineRoom.myVote === s.i) div.classList.add('selected');
+        if (myVotes.includes(s.i)) div.classList.add('selected');
       }
     } else if (isGm && gmMode === 'single') {
       if (s.i === gmSeat) div.classList.add('novote');   // 自分の席には投票しない
@@ -1505,17 +1538,38 @@ function renderVoteList() {
     } else if (isGm && gmMode === 'none') {
       div.classList.add('novote');
     } else if (!online) {
-      div.onclick = () => { game.accusedSeat = s.i; renderVoteList(); };
-      if (game && game.accusedSeat === s.i) div.classList.add('selected');
+      div.onclick = () => toggleOfflineAccuse(s.i);
+      if (game && (game.accusedSel || []).includes(s.i)) div.classList.add('selected');
     }
     box.appendChild(div);
   });
   renderVoteProgress(isPlayer);
 }
 
-/* GMの単一投票（全員スマホ＋GMは1票のみのケース） */
+/* オフライン: 指差し結果からGMが指名者を選ぶ（造反者・スパイの人数分） */
+function toggleOfflineAccuse(i) {
+  const W = gameWolfCount();
+  let sel = game.accusedSel || [];
+  if (sel.includes(i)) sel = sel.filter(x => x !== i);
+  else if (W === 1) sel = [i];
+  else if (sel.length >= W) { showVoteWarn(`⚠️ 選べるのは${W}人までです。タップで解除してから選び直してください`); return; }
+  else sel = sel.concat([i]);
+  game.accusedSel = sel;
+  renderVoteList();
+}
+
+/* GMがプレイヤーとして投票するモード（全員スマホ）: タップで選択、人数分まで（1人1票ずつ） */
 function hostSingleVote(i) {
-  game.gmVotes = { [i]: 1 };
+  const allow = hostAllowance();
+  game.gmVotes = game.gmVotes || {};
+  if (game.gmVotes[i]) {
+    delete game.gmVotes[i];
+  } else if (Object.keys(game.gmVotes).length >= allow) {
+    if (allow === 1) game.gmVotes = { [i]: 1 };
+    else { showVoteWarn(`⚠️ 投票できるのは${allow}人までです。タップで解除してから選び直してください`); return; }
+  } else {
+    game.gmVotes[i] = 1;
+  }
   renderVoteList();
   if (onlineRoom && onlineRoom.isHost && fb) {
     fb.fs.updateDoc(fb.fs.doc(fb.db, 'rooms', onlineRoom.code), { gmVotes: game.gmVotes }).catch(() => {});
@@ -1529,9 +1583,11 @@ function renderVoteProgress(isPlayer) {
   if (!onlineRoom || isPlayer || !fb) { el.style.display = 'none'; return; }
   const phoneSeats = (onlineRoom.seats || []).filter(s => s.claimedBy && s.claimedBy !== fb.uid);
   if (!phoneSeats.length) { el.style.display = 'none'; return; }
-  const voted = phoneSeats.filter(s => s.vote != null).length;
+  const need = game ? hostAllowance() : 1;
+  const voted = phoneSeats.filter(s => seatVotes(s).length >= need).length;
   el.style.display = '';
-  el.innerHTML = `📱 スマホからの投票：<b>${voted} / ${phoneSeats.length}人</b> が投票済み<br>` +
+  el.innerHTML = `📱 スマホからの投票：<b>${voted} / ${phoneSeats.length}人</b> が投票完了` +
+    (need > 1 ? `（1人${need}票）` : '') + `<br>` +
     `<span style="font-size:12px">（誰が誰に入れたかは、締め切るまで表示されません）</span>`;
 }
 
@@ -1554,11 +1610,13 @@ function hideVoteWarn() {
 function hostAdjustVote(i, d) {
   game.gmVotes = game.gmVotes || {};
   if (d > 0) {
-    // 上限チェック: スマホ投票分＋GM入力分が出席人数を超えないように
-    const phoneVotes = (onlineRoom.seats || []).filter(s => s.vote != null).length;
+    // 上限チェック: GM入力分は「担当人数 ×（1人あたりの票数）」まで
+    const allow = hostAllowance();
+    const quota = gmVoteQuota();
+    const capTotal = allow * quota;
     const gmTotal = Object.values(game.gmVotes).reduce((a, b) => a + b, 0);
-    if (phoneVotes + gmTotal >= game.assignments.length) {
-      showVoteWarn(`⚠️ これ以上票を入れられません — 投票数が出席人数（${game.assignments.length}人）に達しています<br>（スマホからの投票 ${phoneVotes}票 ＋ GM入力 ${gmTotal}票）`);
+    if (gmTotal >= capTotal) {
+      showVoteWarn(`⚠️ これ以上票を入れられません — GM入力分は最大 ${capTotal}票 です<br>（${allow}票 × スマホを使わない${quota}人分）`);
       return;
     }
   }
@@ -1571,34 +1629,59 @@ function hostAdjustVote(i, d) {
   }
 }
 
-/* 投票締め切り: 最多票が1人なら自動指名、同数なら決選投票 */
+/* 投票締め切り: 上位（造反者・スパイの人数）人を確定。枠を超える同数は決選投票 */
 function hostCloseVoting() {
+  const runoffActive = !!game.runoff;
+  const slots = runoffActive ? (game.runoffSlots || 1) : gameWolfCount();
+  const inScope = t => !runoffActive || game.runoff.includes(t);
   const counts = {};
-  (onlineRoom.seats || []).forEach(s => { if (s.vote != null) counts[s.vote] = (counts[s.vote] || 0) + 1; });
-  Object.keys(game.gmVotes || {}).forEach(k => { counts[k] = (counts[k] || 0) + game.gmVotes[k]; });
-  const entries = Object.keys(counts).map(k => ({ i: parseInt(k, 10), n: counts[k] }));
+  (onlineRoom.seats || []).forEach(s => {
+    seatVotes(s).forEach(t => { if (inScope(t)) counts[t] = (counts[t] || 0) + 1; });
+  });
+  Object.keys(game.gmVotes || {}).forEach(k => {
+    const t = parseInt(k, 10);
+    if (inScope(t)) counts[t] = (counts[t] || 0) + (game.gmVotes[k] || 0);
+  });
+  const entries = Object.keys(counts).map(k => ({ i: parseInt(k, 10), n: counts[k] })).sort((a, b) => b.n - a.n);
   if (!entries.length) { showVoteWarn('⚠️ まだ1票も入っていません'); return; }
-  const max = Math.max(...entries.map(e => e.n));
-  const top = entries.filter(e => e.n === max).map(e => e.i);
-  if (top.length === 1) {
-    game.accusedSeat = top[0];
-    hostConfirmAccused();
-  } else {
-    startRunoff(top);
+
+  // 得票順に枠を埋める。同数グループが枠に収まれば全員確定、はみ出したら決選投票
+  const decided = [];
+  let idx = 0;
+  while (idx < entries.length && decided.length < slots) {
+    const n = entries[idx].n;
+    const group = entries.filter(e => e.n === n).map(e => e.i);
+    if (decided.length + group.length <= slots) {
+      decided.push(...group);
+      idx += group.length;
+    } else {
+      startRunoff(group, slots - decided.length, (game.preAccused || []).concat(decided));
+      return;
+    }
   }
+  if (decided.length < slots) {
+    showVoteWarn(`⚠️ 票の入った閣僚が足りません（あと${slots - decided.length}人分、別の閣僚への票が必要です）`);
+    return;
+  }
+  finalizeAccused((game.preAccused || []).concat(decided));
 }
 
-function startRunoff(tied) {
+function startRunoff(tied, slots, decided) {
+  game.preAccused = decided || [];
   game.runoff = tied;
+  game.runoffSlots = slots;
   game.gmVotes = {};
   const names = tied.map(i => game.assignments[i].name).join('、');
+  const fixed = game.preAccused.length
+    ? `（${game.preAccused.map(i => esc(game.assignments[i].name)).join('、')} は指名確定）<br>`
+    : '';
   document.getElementById('vote-note').innerHTML =
-    `⚖️ ${esc(names)} が同数！<br>🔁 <b>決選投票</b>です。この中からもう一度投票してください。`;
+    fixed + `⚖️ ${esc(names)} が同数！<br>🔁 <b>決選投票</b> — この中から<b>${slots}人</b>を選んで投票し直してください。`;
   renderVoteList();
   if (onlineRoom && onlineRoom.isHost && fb) {
     const { doc, writeBatch } = fb.fs;
     const b = writeBatch(fb.db);
-    b.update(doc(fb.db, 'rooms', onlineRoom.code), { runoff: tied, gmVotes: {} });
+    b.update(doc(fb.db, 'rooms', onlineRoom.code), { runoff: tied, runoffSlots: slots, gmVotes: {} });
     (onlineRoom.seats || []).forEach(s => {
       if (s.vote != null) b.update(doc(fb.db, 'rooms', onlineRoom.code, 'seats', String(s.i)), { vote: null });
     });
@@ -1606,31 +1689,52 @@ function startRunoff(tied) {
   }
 }
 
-function hostConfirmAccused() {
-  if (!game || game.accusedSeat == null) { showVoteWarn('⚠️ 指名する閣僚を名簿から選んでください'); return; }
+/* 指名確定 → 回答フェーズへ（1人でも複数でも共通） */
+function finalizeAccused(seatsArr) {
   hideVoteWarn();
-  game.accusedName = game.assignments[game.accusedSeat].name;
-  showAnswerCard(game.accusedName, game.mode);
+  game.accusedSeats = seatsArr;
+  game.accusedNames = seatsArr.map(i => game.assignments[i].name);
+  game.preAccused = [];
+  game.runoff = null;
+  game.runoffSlots = null;
+  showAnswerCard(game.accusedNames, game.mode);
   if (onlineRoom && onlineRoom.isHost && fb) {
     fb.fs.updateDoc(fb.fs.doc(fb.db, 'rooms', onlineRoom.code), {
-      phase: 'answer', accusedSeat: game.accusedSeat, accusedName: game.accusedName
+      phase: 'answer', accusedSeats: game.accusedSeats, accusedNames: game.accusedNames,
+      runoff: null, runoffSlots: null
     }).catch(() => {});
   }
 }
 
-function showAnswerCard(name, mode) {
+/* オフライン時: GMが名簿から選んだ人数分を指名 */
+function hostConfirmAccused() {
+  const W = gameWolfCount();
+  const sel = (game && game.accusedSel) || [];
+  if (sel.length !== W) {
+    showVoteWarn(W === 1
+      ? '⚠️ 指名する閣僚を名簿から選んでください'
+      : `⚠️ 指名する閣僚を${W}人選んでください（現在 ${sel.length}人）`);
+    return;
+  }
+  finalizeAccused(sel.slice());
+}
+
+function showAnswerCard(names, mode) {
+  if (!Array.isArray(names)) names = [names];
   showScreen('screen-result');
   renderPhaseCards('answer');
   document.getElementById('answer-label').textContent = mode === 'spy'
     ? `🕵️ ${TERMS.spySpy}の嫌疑をかけられたのは…`
     : '🫵 造反の嫌疑をかけられたのは…';
-  document.getElementById('answer-name').textContent = name;
-  document.getElementById('answer-note').innerHTML =
-    `👉 <b>${esc(name)}</b> は、まず<b>自分に通達された議題</b>を声に出して答えてください。`;
+  document.getElementById('answer-name').innerHTML = names.map(esc).join('<br>');
+  document.getElementById('answer-note').innerHTML = names.length === 1
+    ? `👉 <b>${esc(names[0])}</b> は、まず<b>自分に通達された議題</b>を声に出して答えてください。`
+    : `👉 指名された${names.length}人は、<b>1人ずつ順番に</b>、<b>自分に通達された議題</b>を声に出して答えてください。`;
   // 言い間違い防止: 指名された本人のスマホにだけ、自分の議題の確認ボタンを表示
   const self = document.getElementById('answer-self');
-  const isAccusedMe = !!(onlineRoom && !onlineRoom.isHost && onlineRoom.room
-    && onlineRoom.room.accusedSeat === onlineRoom.mySeat);
+  const r = (onlineRoom && !onlineRoom.isHost) ? onlineRoom.room : null;
+  const accSeats = r ? (r.accusedSeats || (r.accusedSeat != null ? [r.accusedSeat] : [])) : [];
+  const isAccusedMe = !!(r && accSeats.includes(onlineRoom.mySeat));
   self.style.display = isAccusedMe ? '' : 'none';
   document.getElementById('answer-self-word').style.display = 'none';
 }
@@ -1643,12 +1747,11 @@ function toggleAnswerSelf() {
 }
 
 function hostShowJudge() {
-  const isWolf = game.assignments[game.accusedSeat].isWolf;
-  game.accusedIsWolf = isWolf;
-  showJudgeCard(isWolf, game.accusedName, game.mode);
+  const roles = (game.accusedSeats || []).map(i => game.assignments[i].isWolf);
+  showJudgeCard(roles, game.accusedNames, game.mode);
   if (onlineRoom && onlineRoom.isHost && fb) {
     fb.fs.updateDoc(fb.fs.doc(fb.db, 'rooms', onlineRoom.code), {
-      phase: 'judge', accusedIsWolf: isWolf
+      phase: 'judge', accusedRoles: roles
     }).catch(() => {});
   }
 }
@@ -1658,34 +1761,68 @@ function roleChip(text, isBad) {
     ` style="display:inline-block; padding:2px 14px; border-radius:999px; font-size:.72em; font-weight:bold; vertical-align:middle">${text}</span>`;
 }
 
-/* 正体カード: 判定バッジ / 名前 / 正体 / 勝敗 / 次にやること を分けて表示 */
-function showJudgeCard(isWolf, name, mode) {
+/* 正体カード: 判定バッジ / 名前 / 正体 / 勝敗 / 次にやること を分けて表示
+   roles/names は配列（1人なら従来表示、複数なら一覧表示） */
+function showJudgeCard(roles, names, mode) {
+  if (!Array.isArray(roles)) roles = [roles];
+  if (!Array.isArray(names)) names = [names];
   showScreen('screen-result');
   renderPhaseCards('judge');
   const set = (id, html) => { document.getElementById(id).innerHTML = html; };
   const badRole = mode === 'wolf' ? TERMS.wolfMinority : TERMS.spySpy;
   const goodRole = mode === 'wolf' ? TERMS.wolfMajority : TERMS.spyCitizen;
+  const isPlayerView = !!(onlineRoom && !onlineRoom.isHost);
 
-  set('judge-name', esc(name));
-  if (isWolf) {
-    set('judge-verdict', '<span class="verdict-badge verdict-ok">🎯 指名成功！</span>');
-    set('judge-role', (mode === 'wolf' ? '🐺 ' : '🕵️ ') + roleChip(badRole, true) + ' だった！');
+  if (names.length === 1) {
+    const isWolf = !!roles[0];
+    const name = names[0];
+    set('judge-name', esc(name));
+    if (isWolf) {
+      set('judge-verdict', '<span class="verdict-badge verdict-ok">🎯 指名成功！</span>');
+      set('judge-role', (mode === 'wolf' ? '🐺 ' : '🕵️ ') + roleChip(badRole, true) + ' だった！');
+      set('judge-win', '<span class="verdict-badge verdict-rev" style="margin-bottom:0">⚡ 逆転のチャンス！</span>');
+      set('judge-action', mode === 'wolf'
+        ? `👉 <b>${esc(name)}</b> は「<b>${goodRole}の議題</b>」をズバリ宣言してください。<br><b>当たれば逆転勝ち</b>、ハズレなら<b>${goodRole}の勝ち</b>です。`
+        : `👉 <b>${esc(name)}</b> は「<b>本日の議題</b>」をズバリ宣言してください。<br><b>当たれば逆転勝ち</b>、ハズレなら<b>${goodRole}の勝ち</b>です。`);
+    } else {
+      const gmHint = isPlayerView ? '' : (mode === 'wolf'
+        ? `<br>（${badRole}に名乗り出て議題を発表してもらってから最終結果を表示すると、盛り上がります）`
+        : `<br>（${badRole}に名乗り出てもらってから最終結果を表示すると、盛り上がります）`);
+      set('judge-verdict', '<span class="verdict-badge verdict-ng">💥 指名失敗…</span>');
+      set('judge-role', '⚖️ ' + (mode === 'spy' ? '正規の ' : '') + roleChip(goodRole, false) + ' だった…');
+      set('judge-win', `<span style="color:#d81b55">🏆 ${badRole}の勝利！</span>`);
+      set('judge-action', (mode === 'wolf'
+        ? `👉 さて、<b>誰が${badRole}</b>で、<b>どんな議題が通達されていた</b>のでしょうか…？`
+        : `👉 さて、いったい<b>誰が${badRole}だった</b>のでしょうか…？`) + gmHint);
+    }
+    return;
+  }
+
+  // ---- 複数人指名: 全員が造反者(スパイ)なら指名成功 ----
+  const allBad = roles.every(Boolean);
+  set('judge-name', '');
+  const rows = names.map((nm, k) =>
+    `<div class="result-player${roles[k] ? ' is-wolf' : ''}">` +
+    `<span class="nm">${esc(nm)}</span>` +
+    `<span class="badge ${roles[k] ? 'role-spy' : 'role-citizen'}">` +
+    `${roles[k] ? badRole : (mode === 'spy' ? '正規の' + goodRole : goodRole)}</span></div>`
+  ).join('');
+  set('judge-role', `<div class="result-players" style="text-align:left; font-size:15px; font-weight:normal; margin-bottom:6px">${rows}</div>`);
+
+  if (allBad) {
+    set('judge-verdict', '<span class="verdict-badge verdict-ok">🎯 全員、指名成功！</span>');
     set('judge-win', '<span class="verdict-badge verdict-rev" style="margin-bottom:0">⚡ 逆転のチャンス！</span>');
-    set('judge-action', mode === 'wolf'
-      ? `👉 <b>${esc(name)}</b> は「<b>${goodRole}の議題</b>」をズバリ宣言してください。<br><b>当たれば逆転勝ち</b>、ハズレなら<b>${goodRole}の勝ち</b>です。`
-      : `👉 <b>${esc(name)}</b> は「<b>本日の議題</b>」をズバリ宣言してください。<br><b>当たれば逆転勝ち</b>、ハズレなら<b>${goodRole}の勝ち</b>です。`);
+    const target = mode === 'wolf' ? `${goodRole}の議題` : '本日の議題';
+    set('judge-action',
+      `👉 ${badRole}のうち<b>誰か1人でも</b>「<b>${target}</b>」をズバリ当てれば<b>逆転勝ち</b>！` +
+      `<br>1人ずつ宣言してください。全員ハズレなら<b>${goodRole}の勝ち</b>です。`);
   } else {
-    // 演出のヒントはGM（ホスト）側だけに表示。プレイヤー画面には問いかけのみ。
-    const isPlayerView = !!(onlineRoom && !onlineRoom.isHost);
-    const gmHint = isPlayerView ? '' : (mode === 'wolf'
-      ? `<br>（${badRole}に名乗り出て議題を発表してもらってから最終結果を表示すると、盛り上がります）`
-      : `<br>（${badRole}に名乗り出てもらってから最終結果を表示すると、盛り上がります）`);
+    const gmHint = isPlayerView ? '' : `<br>（${badRole}に名乗り出てもらってから最終結果を表示すると、盛り上がります）`;
     set('judge-verdict', '<span class="verdict-badge verdict-ng">💥 指名失敗…</span>');
-    set('judge-role', '⚖️ ' + (mode === 'spy' ? '正規の ' : '') + roleChip(goodRole, false) + ' だった…');
     set('judge-win', `<span style="color:#d81b55">🏆 ${badRole}の勝利！</span>`);
     set('judge-action', (mode === 'wolf'
-      ? `👉 さて、<b>誰が${badRole}</b>で、<b>どんな議題が通達されていた</b>のでしょうか…？`
-      : `👉 さて、いったい<b>誰が${badRole}だった</b>のでしょうか…？`) + gmHint);
+      ? `👉 逃げのびた<b>${badRole}は誰</b>で、<b>どんな議題が通達されていた</b>のでしょうか…？`
+      : `👉 逃げのびた<b>${badRole}は誰</b>だったのでしょうか…？`) + gmHint);
   }
 }
 
@@ -1856,8 +1993,10 @@ async function writeRound(code, resetClaims) {
   b.set(doc(fb.db, 'rooms', code), {
     hostUid: fb.uid, mode: game.mode, phase: 'lobby',
     playerCount: game.assignments.length,
+    wolfCount: game.assignments.filter(a => a.isWolf).length,
     timer: { endsAt: null, paused: false, remainMs: null, duration: state.time },
-    accusedSeat: null, accusedName: null, accusedIsWolf: null,
+    accusedSeats: null, accusedNames: null, accusedRoles: null,
+    runoff: null, runoffSlots: null,
     createdAtMs: Date.now(), round: Date.now()
   });
   game.assignments.forEach((a, i) => {
@@ -2196,7 +2335,7 @@ function onPlayerRoomChange() {
     onlineRoom.lastRound = r.round;
     onlineRoom.wordShown = false;
     onlineRoom.beeped = false;
-    onlineRoom.myVote = null;
+    onlineRoom.myVotes = [];
     renderPlayerWord();
   }
   if (onlineRoom.mySeat == null) { showScreen('screen-player'); return; }
@@ -2224,20 +2363,26 @@ function onPlayerRoomChange() {
     showScreen('screen-result');
     renderPhaseCards('vote');
     const roleName = r.mode === 'wolf' ? TERMS.wolfMinority : TERMS.spySpy;
-    const runoffKey = JSON.stringify(r.runoff || null);
+    const allow = playerAllowance();
+    const runoffKey = JSON.stringify([r.runoff || null, r.runoffSlots || null]);
     if (onlineRoom.lastRunoffKey !== runoffKey) {
       onlineRoom.lastRunoffKey = runoffKey;
-      onlineRoom.myVote = null;
+      onlineRoom.myVotes = [];
     }
     document.getElementById('vote-note').innerHTML = r.runoff
-      ? '⚖️ 同数のため 🔁 <b>決選投票</b>！<br>対象の閣僚から選んで、もう一度投票してください。'
-      : `${roleName}だと思う閣僚をタップして投票しましょう。<br>（あとから変更もできます）`;
+      ? `⚖️ 同数のため 🔁 <b>決選投票</b>！<br>対象の閣僚から<b>${allow}人</b>選んで、もう一度投票してください。`
+      : (allow === 1
+          ? `${roleName}だと思う閣僚をタップして投票しましょう。<br>（あとから変更もできます）`
+          : `${roleName}だと思う閣僚を<b>${allow}人</b>タップして投票しましょう。<br>（1人1票ずつ・タップで解除もできます）`);
     renderVoteList();
   } else if (r.phase === 'answer') {
     clearInterval(timer.id); timer.id = null;
-    showAnswerCard(r.accusedName || '？？？', r.mode);
+    showAnswerCard(r.accusedNames || [r.accusedName || '？？？'], r.mode);
   } else if (r.phase === 'judge') {
-    showJudgeCard(!!r.accusedIsWolf, r.accusedName || '？？？', r.mode);
+    showJudgeCard(
+      r.accusedRoles || [!!r.accusedIsWolf],
+      r.accusedNames || [r.accusedName || '？？？'],
+      r.mode);
   } else if (r.phase === 'result') {
     clearInterval(timer.id); timer.id = null;
     showScreen('screen-result');
@@ -2246,10 +2391,21 @@ function onPlayerRoomChange() {
 }
 
 async function playerVote(i) {
-  onlineRoom.myVote = i;
+  const allow = playerAllowance();
+  let v = (onlineRoom.myVotes || []).slice();
+  if (v.includes(i)) {
+    v = v.filter(x => x !== i);            // タップで解除
+  } else if (v.length >= allow) {
+    if (allow === 1) v = [i];              // 1票制は従来どおり移動
+    else { showVoteWarn(`⚠️ 投票できるのは${allow}人までです。タップで解除してから選び直してください`); return; }
+  } else {
+    v.push(i);                             // 同じ人には1票まで（重複はtoggleで防止）
+  }
+  onlineRoom.myVotes = v;
   renderVoteList();
   try {
-    await fb.fs.updateDoc(fb.fs.doc(fb.db, 'rooms', onlineRoom.code, 'seats', String(onlineRoom.mySeat)), { vote: i });
+    const val = allow === 1 ? (v.length ? v[0] : null) : v;
+    await fb.fs.updateDoc(fb.fs.doc(fb.db, 'rooms', onlineRoom.code, 'seats', String(onlineRoom.mySeat)), { vote: val });
   } catch (e) {}
 }
 
