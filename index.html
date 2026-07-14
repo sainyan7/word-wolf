@@ -143,6 +143,27 @@
   .vote-row.novote { cursor: default; opacity: .45; }
   .accuse-label { font-size: 14px; color: var(--muted); font-weight: bold; letter-spacing: .06em; margin-bottom: 10px; }
   .accuse-name { font-size: clamp(26px, 9vw, 40px); font-weight: bold; line-height: 1.25; word-break: break-word; color: var(--accent); margin-bottom: 14px; }
+  .verdict-badge { display: inline-block; padding: 8px 24px; border-radius: 999px; font-size: 18px; font-weight: bold; margin-bottom: 14px; }
+  .verdict-ok { background: #e2f7ec; color: #1a8a5a; }
+  .verdict-ng { background: #ffe3ea; color: #d81b55; }
+  .verdict-rev { background: #fff3e0; color: #b26a00; animation: pulse 1.6s infinite; }
+  #genre-select-details summary {
+    list-style: none; cursor: pointer; padding: 10px 12px; border: 2px solid #e5e3f2;
+    border-radius: 12px; background: #fafaff; font-size: 14px; font-weight: bold;
+    display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  }
+  #genre-select-details summary::-webkit-details-marker { display: none; }
+  #genre-select-details summary::after { content: '▼'; font-size: 10px; color: var(--muted); flex-shrink: 0; }
+  #genre-select-details[open] summary::after { content: '▲'; }
+  .win-line { font-size: 20px; font-weight: bold; margin: 4px 0 16px; }
+  .action-box {
+    background: #f0eefc; border-left: 4px solid var(--accent); border-radius: 10px;
+    padding: 12px 14px; font-size: 14px; text-align: left; line-height: 1.9; margin-bottom: 18px;
+  }
+  .vote-warn {
+    background: #fff3e0; color: #b26a00; border-radius: 10px; padding: 10px 14px;
+    font-size: 13px; font-weight: bold; margin-bottom: 14px; line-height: 1.7;
+  }
   .genre-check { cursor: pointer; }
   .genre-check input { width: 20px; height: 20px; }
 
@@ -256,7 +277,10 @@
       <div class="row">
         <label>議題のジャンル<span class="hint">複数選べます（チェックなし＝すべてから出題）</span></label>
       </div>
-      <div id="genre-select-list" class="item-list mt10"></div>
+      <details id="genre-select-details" class="mt10">
+        <summary><span id="genre-select-summary"></span></summary>
+        <div id="genre-select-list" class="item-list mt10"></div>
+      </details>
       <button class="btn btn-sub btn-small mt10" onclick="openThemes()">⚙️ 議題の設定（追加・編集・削除）</button>
       <div class="row mt16">
         <label>閣議時間</label>
@@ -286,6 +310,11 @@
 
   <!-- ============ ONLINE: HOST LOBBY ============ -->
   <section id="screen-lobby" class="screen">
+    <details class="help">
+      <summary>📖 あそびかた</summary>
+      <div class="help-body help-body-dyn"></div>
+    </details>
+
     <div class="card" style="text-align:center">
       <h2>🌐 閣議室を開設しました</h2>
       <div style="font-size:13px; color:var(--muted); margin-bottom:6px">部屋コード</div>
@@ -294,11 +323,6 @@
       <div id="lobby-url" style="font-size:13px; font-weight:bold; word-break:break-all"></div>
       <img id="lobby-qr" alt="参加用QRコード" style="margin:12px auto 0; display:block; border-radius:8px; width:160px; height:160px">
     </div>
-
-    <details class="help">
-      <summary>📖 あそびかた（初回はここを見ながら説明できます）</summary>
-      <div class="help-body help-body-dyn"></div>
-    </details>
 
     <div class="card">
       <h2>着席状況</h2>
@@ -471,6 +495,7 @@
       <div class="big">🗳️ 投票タイム！</div>
       <div class="note" id="vote-note"></div>
       <div class="result-players" id="vote-list" style="text-align:left; margin-bottom:18px"></div>
+      <div class="vote-warn" id="vote-warn" style="display:none"></div>
       <button class="btn btn-pink host-only" id="accuse-btn" onclick="hostConfirmAccused()" style="display:none">🫵 この閣僚を指名する</button>
       <button class="btn btn-pink host-only" id="close-vote-btn" onclick="hostCloseVoting()" style="display:none">🔒 投票を締め切る</button>
     </div>
@@ -479,7 +504,7 @@
     <div class="card reveal-cover" id="answer-card" style="display:none">
       <div class="accuse-label" id="answer-label"></div>
       <div class="accuse-name" id="answer-name"></div>
-      <div class="note" id="answer-note"></div>
+      <div class="action-box" id="answer-note"></div>
       <div id="answer-self" style="display:none; margin-bottom:18px">
         <button class="btn btn-sub btn-small" onclick="toggleAnswerSelf()">📜 自分の議題を確認する／隠す</button>
         <div id="answer-self-word" style="display:none; font-size:22px; font-weight:bold; margin-top:10px; word-break:break-word"></div>
@@ -490,8 +515,11 @@
 
     <!-- 正体表示 -->
     <div class="card reveal-cover" id="judge-card" style="display:none">
-      <div class="big" id="judge-title"></div>
-      <div class="note" id="judge-note"></div>
+      <div id="judge-verdict"></div>
+      <div class="accuse-name" id="judge-name" style="color:var(--card-text); margin-bottom:6px"></div>
+      <div class="big" id="judge-role" style="margin-bottom:10px"></div>
+      <div class="win-line" id="judge-win"></div>
+      <div class="action-box" id="judge-action"></div>
       <button class="btn btn-pink host-only" onclick="hostShowFinal()">🏁 最終結果を表示</button>
       <div class="player-only" style="font-size:13px; color:var(--muted)">🕰️ GMの操作を待っています…</div>
     </div>
@@ -604,14 +632,14 @@ function setMode(mode) {
 
 function helpHTML(mode) {
   return mode === 'wolf'
-    ? `<b>① 通達</b>：全閣僚に「議題」が通達されますが、${TERMS.wolfMinority}だけ違う議題です。自分が${TERMS.wolfMajority}か${TERMS.wolfMinority}かは分かりません。<br>` +
-      `<b>② 閣議</b>：議題について話し合い、「話が噛み合わない閣僚」を探します。議題を直接言うのはNG！<br>` +
-      `<b>③ 投票</b>：時間が来たら、${TERMS.wolfMinority}だと思う閣僚に投票（スマホ）または「せーの」で指差し。最多票の閣僚が指名されます（同数なら決選投票！）。<br>` +
-      `<b>④ 正体</b>：指名された閣僚は、まず自分の議題を声に出して答えてから正体を公開。${TERMS.wolfMinority}なら${TERMS.wolfMajority}の議題を言い当てれば逆転勝ち！${TERMS.wolfMajority}だったら${TERMS.wolfMinority}の勝ち — ${TERMS.wolfMinority}は名乗り出て自分の議題を発表します。最後に全議題が公開されます。`
-    : `<b>① 通達</b>：${TERMS.spySpy}以外の全${TERMS.spyCitizen}に同じ議題が通達されます。${TERMS.spySpy}は自分が${TERMS.spySpy}だと分かりますが、議題を知りません。<br>` +
-      `<b>② 閣議</b>：順番に質問し合います（例:「その政策、予算は足りそう？」）。${TERMS.spySpy}は話を合わせてバレないように！<br>` +
-      `<b>③ 投票</b>：時間が来たら、${TERMS.spySpy}だと思う閣僚に投票（スマホ）または「せーの」で指差し。最多票の閣僚が指名されます（同数なら決選投票！）。<br>` +
-      `<b>④ 正体</b>：指名された閣僚は、まず自分の議題を答えてから正体を公開。${TERMS.spySpy}なら本日の議題を当てれば逆転勝ち！正規の${TERMS.spyCitizen}だったら${TERMS.spySpy}の勝ち — ${TERMS.spySpy}は名乗り出ましょう。最後に議題が公開されます。`;
+    ? `<b>① 通達</b>：全閣僚に議題が配られますが、<b>${TERMS.wolfMinority}だけ違う議題</b>を通達されています。<b>自分がどちらかは分かりません</b>。<br>` +
+      `<b>② 閣議</b>：議題について話し合い、<b>話が噛み合わない閣僚を探します</b>。<b>議題をそのまま口に出すのはNG</b>！<br>` +
+      `<b>③ 投票</b>：時間が来たら、<b>${TERMS.wolfMinority}だと思う閣僚に投票</b>（スマホ）または「せーの」で指差し。<b>最多票の閣僚が指名</b>されます（同数なら<b>決選投票</b>）。<br>` +
+      `<b>④ 正体</b>：指名された閣僚は<b>まず自分の議題を声に出して答え</b>、そのあとGMが正体を公開。<b>${TERMS.wolfMinority}なら、${TERMS.wolfMajority}の議題を言い当てれば逆転勝ち</b>！<b>${TERMS.wolfMajority}だったら${TERMS.wolfMinority}の勝ち</b>（${TERMS.wolfMinority}は名乗り出て自分の議題を発表）。最後に<b>全員の議題が公開</b>されます。`
+    : `<b>① 通達</b>：${TERMS.spySpy}以外の全${TERMS.spyCitizen}に<b>同じ議題</b>が通達されます。<b>${TERMS.spySpy}は自分が${TERMS.spySpy}だと分かりますが、議題を知りません</b>。<br>` +
+      `<b>② 閣議</b>：順番に質問し合います（例:「その政策、予算は足りそう？」）。<b>${TERMS.spySpy}は話を合わせてバレないように</b>！<br>` +
+      `<b>③ 投票</b>：時間が来たら、<b>${TERMS.spySpy}だと思う閣僚に投票</b>（スマホ）または「せーの」で指差し。<b>最多票の閣僚が指名</b>されます（同数なら<b>決選投票</b>）。<br>` +
+      `<b>④ 正体</b>：指名された閣僚は<b>まず自分の議題を答え</b>、そのあとGMが正体を公開。<b>${TERMS.spySpy}なら、本日の議題を当てれば逆転勝ち</b>！<b>正規の${TERMS.spyCitizen}だったら${TERMS.spySpy}の勝ち</b>（${TERMS.spySpy}は名乗り出る）。最後に<b>議題が公開</b>されます。`;
 }
 function fillHelp(mode) {
   document.querySelectorAll('.help-body-dyn').forEach(el => { el.innerHTML = helpHTML(mode); });
@@ -673,6 +701,19 @@ function renderCategories() {
   state[selKey()] = sel;
   const allSelected = sel.length === 0;
   box.innerHTML = '';
+
+  // 収納時のサマリー表示（現在の選択内容）
+  const sumEl = document.getElementById('genre-select-summary');
+  if (sumEl) {
+    const use = allSelected ? genres : genres.filter(g => sel.includes(g.name));
+    const count = use.reduce((n, g) => n + g.items.length, 0);
+    if (allSelected) {
+      sumEl.textContent = `🎲 すべてのジャンル（${count}個）`;
+    } else {
+      const names = sel.length > 3 ? sel.slice(0, 3).join('、') + ` ほか${sel.length - 3}件` : sel.join('、');
+      sumEl.textContent = `${names}（${count}個）`;
+    }
+  }
 
   const mkRow = (labelText, checked, onToggle, bold) => {
     const row = document.createElement('label');
@@ -1343,6 +1384,7 @@ function goVote() {
   const roleName = game.mode === 'wolf' ? TERMS.wolfMinority : TERMS.spySpy;
   document.getElementById('accuse-btn').style.display = online ? 'none' : '';
   document.getElementById('close-vote-btn').style.display = online ? '' : 'none';
+  hideVoteWarn();
   document.getElementById('vote-note').innerHTML = online
     ? `${roleName}だと思う閣僚に投票！スマホの閣僚は各自の画面で投票。<br>` +
       `GM自身の1票と、スマホがない閣僚の票は、GMが名簿の「＋」で入れてください。全員分そろったら締め切り！`
@@ -1419,6 +1461,22 @@ function renderVoteList() {
   });
 }
 
+let voteWarnTimer = null;
+function showVoteWarn(msg) {
+  const el = document.getElementById('vote-warn');
+  if (!el) return;
+  el.innerHTML = msg;
+  el.style.display = '';
+  clearTimeout(voteWarnTimer);
+  voteWarnTimer = setTimeout(hideVoteWarn, 5000);
+}
+function hideVoteWarn() {
+  const el = document.getElementById('vote-warn');
+  if (el) el.style.display = 'none';
+  clearTimeout(voteWarnTimer);
+  voteWarnTimer = null;
+}
+
 function hostAdjustVote(i, d) {
   game.gmVotes = game.gmVotes || {};
   if (d > 0) {
@@ -1426,10 +1484,11 @@ function hostAdjustVote(i, d) {
     const phoneVotes = (onlineRoom.seats || []).filter(s => s.vote != null).length;
     const gmTotal = Object.values(game.gmVotes).reduce((a, b) => a + b, 0);
     if (phoneVotes + gmTotal >= game.assignments.length) {
-      alert(`これ以上票を入れられません。\n投票数が出席人数（${game.assignments.length}人）に達しています。\n（スマホからの投票 ${phoneVotes}票 ＋ GM入力 ${gmTotal}票）`);
+      showVoteWarn(`⚠️ これ以上票を入れられません — 投票数が出席人数（${game.assignments.length}人）に達しています<br>（スマホからの投票 ${phoneVotes}票 ＋ GM入力 ${gmTotal}票）`);
       return;
     }
   }
+  hideVoteWarn();
   const v = Math.max(0, (game.gmVotes[i] || 0) + d);
   if (v === 0) delete game.gmVotes[i]; else game.gmVotes[i] = v;
   renderVoteList();
@@ -1444,7 +1503,7 @@ function hostCloseVoting() {
   (onlineRoom.seats || []).forEach(s => { if (s.vote != null) counts[s.vote] = (counts[s.vote] || 0) + 1; });
   Object.keys(game.gmVotes || {}).forEach(k => { counts[k] = (counts[k] || 0) + game.gmVotes[k]; });
   const entries = Object.keys(counts).map(k => ({ i: parseInt(k, 10), n: counts[k] }));
-  if (!entries.length) { alert('まだ1票も入っていません'); return; }
+  if (!entries.length) { showVoteWarn('⚠️ まだ1票も入っていません'); return; }
   const max = Math.max(...entries.map(e => e.n));
   const top = entries.filter(e => e.n === max).map(e => e.i);
   if (top.length === 1) {
@@ -1474,7 +1533,8 @@ function startRunoff(tied) {
 }
 
 function hostConfirmAccused() {
-  if (!game || game.accusedSeat == null) { alert('指名する閣僚を名簿から選んでください'); return; }
+  if (!game || game.accusedSeat == null) { showVoteWarn('⚠️ 指名する閣僚を名簿から選んでください'); return; }
+  hideVoteWarn();
   game.accusedName = game.assignments[game.accusedSeat].name;
   showAnswerCard(game.accusedName, game.mode);
   if (onlineRoom && onlineRoom.isHost && fb) {
@@ -1492,7 +1552,7 @@ function showAnswerCard(name, mode) {
     : '🫵 造反の嫌疑をかけられたのは…';
   document.getElementById('answer-name').textContent = name;
   document.getElementById('answer-note').innerHTML =
-    'まずは<b>自分に通達された議題</b>を、声に出して答えてください。';
+    `👉 <b>${esc(name)}</b> は、まず<b>自分に通達された議題</b>を声に出して答えてください。`;
   // 言い間違い防止: 指名された本人のスマホにだけ、自分の議題の確認ボタンを表示
   const self = document.getElementById('answer-self');
   const isAccusedMe = !!(onlineRoom && !onlineRoom.isHost && onlineRoom.room
@@ -1524,34 +1584,29 @@ function roleChip(text, isBad) {
     ` style="display:inline-block; padding:2px 14px; border-radius:999px; font-size:.72em; font-weight:bold; vertical-align:middle">${text}</span>`;
 }
 
+/* 正体カード: 判定バッジ / 名前 / 正体 / 勝敗 / 次にやること を分けて表示 */
 function showJudgeCard(isWolf, name, mode) {
   showScreen('screen-result');
   renderPhaseCards('judge');
-  const t = document.getElementById('judge-title');
-  const n = document.getElementById('judge-note');
-  // 名前を大きく1行、判定を次の行に分けて表示（PC/スマホ両対応）
-  const verdict = (emoji, roleHtml, tail) =>
-    `<div class="accuse-name" style="color:var(--card-text); margin-bottom:8px">${esc(name)}</div>` +
-    `<div>${emoji} ${roleHtml} ${tail}</div>`;
-  if (mode === 'wolf') {
-    if (isWolf) {
-      t.innerHTML = verdict('🐺', roleChip(TERMS.wolfMinority, true), 'だった！');
-      n.innerHTML = `お見事！ただし${TERMS.wolfMinority}には逆転のチャンスがあります。<br>` +
-        `<b>${TERMS.wolfMajority}の議題</b>をズバリ当てられたら逆転勝ち — 声に出して宣言してください！`;
-    } else {
-      t.innerHTML = verdict('⚖️', roleChip(TERMS.wolfMajority, false), 'だった…！');
-      n.innerHTML = `指名は失敗、${TERMS.wolfMinority}の勝利！<br>` +
-        `${TERMS.wolfMinority}は名乗り出て、<b>自分に通達された議題</b>を発表してください。`;
-    }
+  const set = (id, html) => { document.getElementById(id).innerHTML = html; };
+  const badRole = mode === 'wolf' ? TERMS.wolfMinority : TERMS.spySpy;
+  const goodRole = mode === 'wolf' ? TERMS.wolfMajority : TERMS.spyCitizen;
+
+  set('judge-name', esc(name));
+  if (isWolf) {
+    set('judge-verdict', '<span class="verdict-badge verdict-ok">🎯 指名成功！</span>');
+    set('judge-role', (mode === 'wolf' ? '🐺 ' : '🕵️ ') + roleChip(badRole, true) + ' だった！');
+    set('judge-win', '<span class="verdict-badge verdict-rev" style="margin-bottom:0">⚡ 逆転のチャンス！</span>');
+    set('judge-action', mode === 'wolf'
+      ? `👉 <b>${esc(name)}</b> は「<b>${goodRole}の議題</b>」をズバリ宣言してください。<br><b>当たれば逆転勝ち</b>、ハズレなら<b>${goodRole}の勝ち</b>です。`
+      : `👉 <b>${esc(name)}</b> は「<b>本日の議題</b>」をズバリ宣言してください。<br><b>当たれば逆転勝ち</b>、ハズレなら<b>${goodRole}の勝ち</b>です。`);
   } else {
-    if (isWolf) {
-      t.innerHTML = verdict('🕵️', roleChip(TERMS.spySpy, true), 'だった！');
-      n.innerHTML = `お見事！ただし${TERMS.spySpy}には逆転のチャンスがあります。<br>` +
-        `<b>本日の議題</b>をズバリ当てられたら逆転勝ち — 宣言してください！`;
-    } else {
-      t.innerHTML = verdict('⚖️', '正規の ' + roleChip(TERMS.spyCitizen, false), 'だった…！');
-      n.innerHTML = `指名は失敗、${TERMS.spySpy}の勝利！<br>${TERMS.spySpy}は名乗り出てください。`;
-    }
+    set('judge-verdict', '<span class="verdict-badge verdict-ng">💥 指名失敗…</span>');
+    set('judge-role', '⚖️ ' + (mode === 'spy' ? '正規の ' : '') + roleChip(goodRole, false) + ' だった…');
+    set('judge-win', `<span style="color:#d81b55">🏆 ${badRole}の勝利！</span>`);
+    set('judge-action', mode === 'wolf'
+      ? `👉 さて、<b>誰が${badRole}</b>で、<b>どんな議題が通達されていた</b>のでしょうか…？<br>（${badRole}に名乗り出て議題を発表してもらってから最終結果を表示すると、盛り上がります）`
+      : `👉 さて、いったい<b>誰が${badRole}だった</b>のでしょうか…？<br>（${badRole}に名乗り出てもらってから最終結果を表示すると、盛り上がります）`);
   }
 }
 
